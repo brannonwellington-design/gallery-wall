@@ -1,43 +1,57 @@
 "use client";
 
+import Link from "next/link";
+import { useEffect, useState } from "react";
 import type { Unit } from "@/lib/types";
 import { fromMm, toMm } from "@/lib/units";
-import { useEffect, useState } from "react";
+
+export type SaveStatus = "idle" | "saving" | "saved" | "error";
 
 type Props = {
+  roomName: string;
   unit: Unit;
   wallWidthMm: number;
   wallHeightMm: number;
   snapEnabled: boolean;
+  saveStatus: SaveStatus;
+  onChangeName: (name: string) => void;
   onChangeUnit: (unit: Unit) => void;
   onChangeWall: (widthMm: number, heightMm: number) => void;
   onChangeSnap: (enabled: boolean) => void;
   onExportPNG: () => void;
   onExportPDF: () => void;
-  onReset: () => void;
+  onClear: () => void;
 };
 
 export default function Toolbar({
+  roomName,
   unit,
   wallWidthMm,
   wallHeightMm,
   snapEnabled,
+  saveStatus,
+  onChangeName,
   onChangeUnit,
   onChangeWall,
   onChangeSnap,
   onExportPNG,
   onExportPDF,
-  onReset,
+  onClear,
 }: Props) {
   const [wInput, setWInput] = useState(() => fromMm(wallWidthMm, unit).toFixed(1));
   const [hInput, setHInput] = useState(() => fromMm(wallHeightMm, unit).toFixed(1));
+  const [nameInput, setNameInput] = useState(roomName);
 
-  // Mirror external wall/unit changes back into the inputs.
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setWInput(fromMm(wallWidthMm, unit).toFixed(1));
     setHInput(fromMm(wallHeightMm, unit).toFixed(1));
   }, [wallWidthMm, wallHeightMm, unit]);
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setNameInput(roomName);
+  }, [roomName]);
 
   function commitWall() {
     const w = Number(wInput);
@@ -47,11 +61,37 @@ export default function Toolbar({
     }
   }
 
-  return (
-    <header className="flex items-center gap-4 px-4 py-2 border-b border-zinc-200 bg-white">
-      <h1 className="text-base font-semibold text-zinc-800">Gallery Wall</h1>
+  function commitName() {
+    const trimmed = nameInput.trim();
+    if (trimmed && trimmed !== roomName) onChangeName(trimmed);
+    else setNameInput(roomName);
+  }
 
-      <div className="flex items-center gap-2 ml-4">
+  return (
+    <header className="flex items-center gap-3 px-4 py-2 border-b border-zinc-200 bg-white">
+      <Link
+        href="/"
+        className="text-xs text-zinc-500 hover:text-zinc-900 px-2 py-1 -ml-2 rounded hover:bg-zinc-100"
+        title="Back to all rooms"
+      >
+        ← Rooms
+      </Link>
+
+      <input
+        type="text"
+        value={nameInput}
+        onChange={(e) => setNameInput(e.target.value)}
+        onBlur={commitName}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+        }}
+        className="text-base font-semibold text-zinc-800 bg-transparent border border-transparent hover:border-zinc-200 focus:border-zinc-300 rounded px-2 py-1 outline-none min-w-0 flex-shrink"
+        aria-label="Room name"
+      />
+
+      <SaveIndicator status={saveStatus} />
+
+      <div className="flex items-center gap-2 ml-4 pl-4 border-l border-zinc-200">
         <span className="text-xs text-zinc-500">Wall</span>
         <input
           type="number"
@@ -106,7 +146,7 @@ export default function Toolbar({
       <button
         type="button"
         onClick={() => onChangeSnap(!snapEnabled)}
-        title="Toggle snap to edges, centers, and equal spacing (hold Alt to disable while dragging)"
+        title="Toggle snap (hold Alt to disable while dragging)"
         className={`border rounded px-2 py-1 text-xs ${
           snapEnabled
             ? "bg-blue-50 border-blue-300 text-blue-700"
@@ -134,11 +174,36 @@ export default function Toolbar({
       </button>
       <button
         type="button"
-        onClick={onReset}
+        onClick={onClear}
         className="border border-zinc-300 rounded px-3 py-1 text-sm text-red-600 hover:bg-red-50"
       >
-        Reset
+        Clear wall
       </button>
     </header>
+  );
+}
+
+function SaveIndicator({ status }: { status: SaveStatus }) {
+  const text =
+    status === "saving"
+      ? "Saving…"
+      : status === "saved"
+        ? "Saved"
+        : status === "error"
+          ? "Save failed"
+          : "";
+  const color =
+    status === "error"
+      ? "text-red-600"
+      : status === "saving"
+        ? "text-zinc-500"
+        : "text-zinc-400";
+  return (
+    <span
+      className={`text-xs ${color} min-w-[64px]`}
+      aria-live="polite"
+    >
+      {text}
+    </span>
   );
 }

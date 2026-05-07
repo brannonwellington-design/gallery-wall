@@ -18,8 +18,16 @@ export type Item = {
 };
 
 export type Room = {
+  name: string;
   wallWidth: number;
   wallHeight: number;
   unit: Unit;
   items: Item[];
+};
+
+export type RoomSummary = {
+  id: string;
+  name: string;
+  itemCount: number;
+  updatedAt: string;
 };

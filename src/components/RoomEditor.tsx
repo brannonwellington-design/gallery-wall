@@ -4,32 +4,13 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import type Konva from "konva";
 import type { Frame, Item, Room, Unit } from "@/lib/types";
-import { DEFAULT_ROOM, STORAGE_KEY } from "@/lib/defaults";
+import { makeDefaultRoom } from "@/lib/defaults";
 import { toMm } from "@/lib/units";
 import AddItemForm from "./AddItemForm";
 import ItemsList from "./ItemsList";
-import Toolbar from "./Toolbar";
+import Toolbar, { type SaveStatus } from "./Toolbar";
 
 const WallCanvas = dynamic(() => import("./WallCanvas"), { ssr: false });
-
-function loadRoom(): Room {
-  if (typeof window === "undefined") return DEFAULT_ROOM;
-  try {
-    const raw = window.localStorage.getItem(STORAGE_KEY);
-    if (!raw) return DEFAULT_ROOM;
-    const parsed = JSON.parse(raw) as Room;
-    if (
-      typeof parsed.wallWidth === "number" &&
-      typeof parsed.wallHeight === "number" &&
-      Array.isArray(parsed.items)
-    ) {
-      return parsed;
-    }
-  } catch {
-    // fall through
-  }
-  return DEFAULT_ROOM;
-}
 
 function uid(): string {
   return Math.random().toString(36).slice(2, 10);
@@ -42,30 +23,52 @@ const ARROWS: Record<string, [number, number]> = {
   ArrowDown: [0, 1],
 };
 
-export default function RoomEditor() {
-  const [room, setRoom] = useState<Room>(DEFAULT_ROOM);
-  const [hydrated, setHydrated] = useState(false);
+type Props = {
+  roomId: string;
+  initialRoom: Room;
+};
+
+export default function RoomEditor({ roomId, initialRoom }: Props) {
+  const [room, setRoom] = useState<Room>(initialRoom);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [snapEnabled, setSnapEnabled] = useState(true);
+  const [saveStatus, setSaveStatus] = useState<SaveStatus>("idle");
   const stageRef = useRef<Konva.Stage | null>(null);
 
-  // Load from localStorage after mount. SSR-safe hydration requires
-  // initial render to match the server, then sync from storage on the client.
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setRoom(loadRoom());
-    setHydrated(true);
-  }, []);
+  // Auto-save: debounce 500ms after the last change.
+  const lastSaved = useRef<string>(JSON.stringify(initialRoom));
+  const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Persist on every change (after initial load).
   useEffect(() => {
-    if (!hydrated) return;
-    try {
-      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(room));
-    } catch {
-      // ignore quota errors for the prototype
+    const snapshot = JSON.stringify(room);
+    if (snapshot === lastSaved.current) return;
+    if (saveTimer.current) clearTimeout(saveTimer.current);
+    saveTimer.current = setTimeout(() => {
+      void save(snapshot, room);
+    }, 500);
+    return () => {
+      if (saveTimer.current) clearTimeout(saveTimer.current);
+    };
+    async function save(snap: string, body: Room) {
+      setSaveStatus("saving");
+      try {
+        const res = await fetch(`/api/rooms/${roomId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ room: body }),
+        });
+        if (!res.ok) {
+          const txt = await res.text().catch(() => "");
+          throw new Error(txt || `HTTP ${res.status}`);
+        }
+        lastSaved.current = snap;
+        setSaveStatus("saved");
+      } catch (e) {
+        console.error("Save failed", e);
+        setSaveStatus("error");
+      }
     }
-  }, [room, hydrated]);
+  }, [room, roomId]);
 
   function changeUnit(unit: Unit) {
     setRoom((r) => ({ ...r, unit }));
@@ -73,6 +76,10 @@ export default function RoomEditor() {
 
   function changeWall(wallWidth: number, wallHeight: number) {
     setRoom((r) => ({ ...r, wallWidth, wallHeight }));
+  }
+
+  function changeName(name: string) {
+    setRoom((r) => ({ ...r, name }));
   }
 
   function addItem(data: {
@@ -100,13 +107,10 @@ export default function RoomEditor() {
     }));
   }, []);
 
-  const removeItem = useCallback(
-    (id: string) => {
-      setRoom((r) => ({ ...r, items: r.items.filter((it) => it.id !== id) }));
-      setSelectedId((prev) => (prev === id ? null : prev));
-    },
-    [],
-  );
+  const removeItem = useCallback((id: string) => {
+    setRoom((r) => ({ ...r, items: r.items.filter((it) => it.id !== id) }));
+    setSelectedId((prev) => (prev === id ? null : prev));
+  }, []);
 
   // Keyboard shortcuts when an item is selected.
   useEffect(() => {
@@ -122,8 +126,6 @@ export default function RoomEditor() {
       const arrow = ARROWS[e.key];
       if (!arrow) return;
       e.preventDefault();
-      // Nudge: 1 unit by default (1 in or 1 cm), 0.1 unit with Shift,
-      // 5 units with Ctrl/Meta.
       let amount = 1;
       if (e.shiftKey) amount = 0.1;
       else if (e.metaKey || e.ctrlKey) amount = 5;
@@ -132,9 +134,7 @@ export default function RoomEditor() {
       setRoom((r) => ({
         ...r,
         items: r.items.map((it) =>
-          it.id === selectedId
-            ? { ...it, x: it.x + dxMm, y: it.y + dyMm }
-            : it,
+          it.id === selectedId ? { ...it, x: it.x + dxMm, y: it.y + dyMm } : it,
         ),
       }));
     };
@@ -142,9 +142,9 @@ export default function RoomEditor() {
     return () => window.removeEventListener("keydown", onKey);
   }, [selectedId, removeItem, room.unit]);
 
-  function reset() {
-    if (!confirm("Clear the wall and reset wall dimensions?")) return;
-    setRoom(DEFAULT_ROOM);
+  function clearWall() {
+    if (!confirm("Remove all pieces from this wall?")) return;
+    setRoom((r) => ({ ...makeDefaultRoom(), name: r.name }));
     setSelectedId(null);
   }
 
@@ -154,7 +154,7 @@ export default function RoomEditor() {
     const dataUrl = stage.toDataURL({ pixelRatio: 2 });
     const a = document.createElement("a");
     a.href = dataUrl;
-    a.download = "gallery-wall.png";
+    a.download = `${slug(room.name)}.png`;
     a.click();
   }
 
@@ -168,22 +168,25 @@ export default function RoomEditor() {
     const orientation = w >= h ? "landscape" : "portrait";
     const pdf = new jsPDF({ orientation, unit: "pt", format: [w, h] });
     pdf.addImage(dataUrl, "PNG", 0, 0, w, h);
-    pdf.save("gallery-wall.pdf");
+    pdf.save(`${slug(room.name)}.pdf`);
   }
 
   return (
     <div className="flex flex-col h-screen w-full bg-zinc-50 text-zinc-900">
       <Toolbar
+        roomName={room.name}
         unit={room.unit}
         wallWidthMm={room.wallWidth}
         wallHeightMm={room.wallHeight}
         snapEnabled={snapEnabled}
+        saveStatus={saveStatus}
+        onChangeName={changeName}
         onChangeUnit={changeUnit}
         onChangeWall={changeWall}
         onChangeSnap={setSnapEnabled}
         onExportPNG={exportPNG}
         onExportPDF={exportPDF}
-        onReset={reset}
+        onClear={clearWall}
       />
 
       <div className="flex flex-1 min-h-0">
@@ -202,22 +205,24 @@ export default function RoomEditor() {
         </aside>
 
         <main className="flex-1 min-w-0">
-          {hydrated ? (
-            <WallCanvas
-              ref={stageRef}
-              room={room}
-              selectedId={selectedId}
-              snapEnabled={snapEnabled}
-              onSelect={setSelectedId}
-              onMoveItem={moveItem}
-            />
-          ) : (
-            <div className="w-full h-full flex items-center justify-center text-zinc-400 text-sm">
-              Loading…
-            </div>
-          )}
+          <WallCanvas
+            ref={stageRef}
+            room={room}
+            selectedId={selectedId}
+            snapEnabled={snapEnabled}
+            onSelect={setSelectedId}
+            onMoveItem={moveItem}
+          />
         </main>
       </div>
     </div>
   );
+}
+
+function slug(s: string): string {
+  return s
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 60) || "gallery-wall";
 }

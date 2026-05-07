@@ -2,6 +2,7 @@
 
 import { Group, Image as KImage, Rect, Text } from "react-konva";
 import useImage from "use-image";
+import type Konva from "konva";
 import type { Item } from "@/lib/types";
 
 type Props = {
@@ -9,10 +10,22 @@ type Props = {
   scale: number;
   selected: boolean;
   onSelect: () => void;
+  onDragStart: () => void;
+  onDragMove: (xMm: number, yMm: number) => void;
   onDragEnd: (xMm: number, yMm: number) => void;
+  dragBoundFunc?: (pos: { x: number; y: number }) => { x: number; y: number };
 };
 
-export default function ItemNode({ item, scale, selected, onSelect, onDragEnd }: Props) {
+export default function ItemNode({
+  item,
+  scale,
+  selected,
+  onSelect,
+  onDragStart,
+  onDragMove,
+  onDragEnd,
+  dragBoundFunc,
+}: Props) {
   const [img] = useImage(item.imageDataUrl, "anonymous");
 
   const frameW = item.frame?.frameWidth ?? 0;
@@ -27,9 +40,15 @@ export default function ItemNode({ item, scale, selected, onSelect, onDragEnd }:
       x={item.x * scale}
       y={item.y * scale}
       draggable
+      dragBoundFunc={dragBoundFunc}
       onClick={onSelect}
       onTap={onSelect}
-      onDragEnd={(e) => {
+      onDragStart={onDragStart}
+      onDragMove={(e: Konva.KonvaEventObject<DragEvent>) => {
+        const node = e.target;
+        onDragMove(node.x() / scale, node.y() / scale);
+      }}
+      onDragEnd={(e: Konva.KonvaEventObject<DragEvent>) => {
         onDragEnd(e.target.x() / scale, e.target.y() / scale);
       }}
     >

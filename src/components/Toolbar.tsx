@@ -8,8 +8,10 @@ type Props = {
   unit: Unit;
   wallWidthMm: number;
   wallHeightMm: number;
+  snapEnabled: boolean;
   onChangeUnit: (unit: Unit) => void;
   onChangeWall: (widthMm: number, heightMm: number) => void;
+  onChangeSnap: (enabled: boolean) => void;
   onExportPNG: () => void;
   onExportPDF: () => void;
   onReset: () => void;
@@ -19,8 +21,10 @@ export default function Toolbar({
   unit,
   wallWidthMm,
   wallHeightMm,
+  snapEnabled,
   onChangeUnit,
   onChangeWall,
+  onChangeSnap,
   onExportPNG,
   onExportPDF,
   onReset,
@@ -98,6 +102,19 @@ export default function Toolbar({
           cm
         </button>
       </div>
+
+      <button
+        type="button"
+        onClick={() => onChangeSnap(!snapEnabled)}
+        title="Toggle snap to edges, centers, and equal spacing (hold Alt to disable while dragging)"
+        className={`border rounded px-2 py-1 text-xs ${
+          snapEnabled
+            ? "bg-blue-50 border-blue-300 text-blue-700"
+            : "bg-white border-zinc-300 text-zinc-500"
+        }`}
+      >
+        Snap: {snapEnabled ? "on" : "off"}
+      </button>
 
       <div className="flex-1" />
 

@@ -1,10 +1,11 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import type Konva from "konva";
 import type { Frame, Item, Room, Unit } from "@/lib/types";
 import { DEFAULT_ROOM, STORAGE_KEY } from "@/lib/defaults";
+import { toMm } from "@/lib/units";
 import AddItemForm from "./AddItemForm";
 import ItemsList from "./ItemsList";
 import Toolbar from "./Toolbar";
@@ -34,10 +35,18 @@ function uid(): string {
   return Math.random().toString(36).slice(2, 10);
 }
 
+const ARROWS: Record<string, [number, number]> = {
+  ArrowLeft: [-1, 0],
+  ArrowRight: [1, 0],
+  ArrowUp: [0, -1],
+  ArrowDown: [0, 1],
+};
+
 export default function RoomEditor() {
   const [room, setRoom] = useState<Room>(DEFAULT_ROOM);
   const [hydrated, setHydrated] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [snapEnabled, setSnapEnabled] = useState(true);
   const stageRef = useRef<Konva.Stage | null>(null);
 
   // Load from localStorage after mount. SSR-safe hydration requires
@@ -84,17 +93,54 @@ export default function RoomEditor() {
     });
   }
 
-  function moveItem(id: string, x: number, y: number) {
+  const moveItem = useCallback((id: string, x: number, y: number) => {
     setRoom((r) => ({
       ...r,
       items: r.items.map((it) => (it.id === id ? { ...it, x, y } : it)),
     }));
-  }
+  }, []);
 
-  function removeItem(id: string) {
-    setRoom((r) => ({ ...r, items: r.items.filter((it) => it.id !== id) }));
-    if (selectedId === id) setSelectedId(null);
-  }
+  const removeItem = useCallback(
+    (id: string) => {
+      setRoom((r) => ({ ...r, items: r.items.filter((it) => it.id !== id) }));
+      setSelectedId((prev) => (prev === id ? null : prev));
+    },
+    [],
+  );
+
+  // Keyboard shortcuts when an item is selected.
+  useEffect(() => {
+    if (!selectedId) return;
+    const onKey = (e: KeyboardEvent) => {
+      const tag = (e.target as HTMLElement | null)?.tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
+      if (e.key === "Delete" || e.key === "Backspace") {
+        e.preventDefault();
+        removeItem(selectedId);
+        return;
+      }
+      const arrow = ARROWS[e.key];
+      if (!arrow) return;
+      e.preventDefault();
+      // Nudge: 1 unit by default (1 in or 1 cm), 0.1 unit with Shift,
+      // 5 units with Ctrl/Meta.
+      let amount = 1;
+      if (e.shiftKey) amount = 0.1;
+      else if (e.metaKey || e.ctrlKey) amount = 5;
+      const dxMm = arrow[0] * toMm(amount, room.unit);
+      const dyMm = arrow[1] * toMm(amount, room.unit);
+      setRoom((r) => ({
+        ...r,
+        items: r.items.map((it) =>
+          it.id === selectedId
+            ? { ...it, x: it.x + dxMm, y: it.y + dyMm }
+            : it,
+        ),
+      }));
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [selectedId, removeItem, room.unit]);
 
   function reset() {
     if (!confirm("Clear the wall and reset wall dimensions?")) return;
@@ -131,8 +177,10 @@ export default function RoomEditor() {
         unit={room.unit}
         wallWidthMm={room.wallWidth}
         wallHeightMm={room.wallHeight}
+        snapEnabled={snapEnabled}
         onChangeUnit={changeUnit}
         onChangeWall={changeWall}
+        onChangeSnap={setSnapEnabled}
         onExportPNG={exportPNG}
         onExportPDF={exportPDF}
         onReset={reset}
@@ -159,6 +207,7 @@ export default function RoomEditor() {
               ref={stageRef}
               room={room}
               selectedId={selectedId}
+              snapEnabled={snapEnabled}
               onSelect={setSelectedId}
               onMoveItem={moveItem}
             />

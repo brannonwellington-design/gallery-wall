@@ -24,9 +24,18 @@ Without any environment variables, rooms persist to a local JSON file at `data/r
 
 The service role key bypasses RLS and is **server-only**. It must never reach the browser; we only use it inside `/api/rooms` route handlers.
 
+## Enable URL ingestion (paste a product URL)
+
+The add-item form has a "Paste product URL" field. When you click Fetch, the server downloads the page, asks Claude to extract the product name, image, and dimensions, and pre-fills the form. To enable this, add to `.env.local`:
+
+- `ANTHROPIC_API_KEY` — get one at https://console.anthropic.com → Settings → API Keys
+
+When this is unset, the rest of the app works fine — only URL ingestion is disabled. Extraction uses `claude-opus-4-7` with adaptive thinking; you can drop to a cheaper model by editing `src/lib/extract.ts` if cost becomes an issue.
+
 ## Stack
 
 - Next.js 16 (App Router) + TypeScript + Tailwind
 - React-Konva for the wall canvas
 - jsPDF for export
 - Supabase (Postgres) for storage, with a JSON-file fallback for dev
+- Anthropic Claude (`@anthropic-ai/sdk`) + Cheerio for URL ingestion

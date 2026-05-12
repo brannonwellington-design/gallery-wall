@@ -17,6 +17,22 @@ type Props = {
 
 const DEFAULT_FRAME_COLOR = "#1f1f1f";
 
+type Variant = {
+  widthInches: number;
+  heightInches: number;
+  label: string | null;
+};
+
+type ExtractionState = {
+  confidence: "high" | "medium" | "low";
+  warnings: string[];
+  variants: Variant[];
+} | null;
+
+function inchesToInput(inches: number, unit: Unit): string {
+  return unit === "in" ? inches.toFixed(1) : (inches * 2.54).toFixed(1);
+}
+
 export default function AddItemForm({ unit, onAdd }: Props) {
   const [name, setName] = useState("");
   const [imageDataUrl, setImageDataUrl] = useState<string | null>(null);
@@ -29,20 +45,76 @@ export default function AddItemForm({ unit, onAdd }: Props) {
   const [frameColor, setFrameColor] = useState(DEFAULT_FRAME_COLOR);
   const fileInput = useRef<HTMLInputElement>(null);
 
+  // URL extraction state
+  const [urlInput, setUrlInput] = useState("");
+  const [fetching, setFetching] = useState(false);
+  const [fetchError, setFetchError] = useState<string | null>(null);
+  const [extraction, setExtraction] = useState<ExtractionState>(null);
+
   const unitLabel = unit === "in" ? '"' : "cm";
+
+  function setImageFromDataUrl(dataUrl: string) {
+    setImageDataUrl(dataUrl);
+    const probe = new Image();
+    probe.onload = () => setImageRatio(probe.width / probe.height);
+    probe.src = dataUrl;
+  }
 
   function handleFile(file: File) {
     const reader = new FileReader();
-    reader.onload = () => {
-      const dataUrl = reader.result as string;
-      const probe = new Image();
-      probe.onload = () => {
-        setImageRatio(probe.width / probe.height);
-      };
-      probe.src = dataUrl;
-      setImageDataUrl(dataUrl);
-    };
+    reader.onload = () => setImageFromDataUrl(reader.result as string);
     reader.readAsDataURL(file);
+  }
+
+  function applyVariant(v: Variant) {
+    setWidth(inchesToInput(v.widthInches, unit));
+    setHeight(inchesToInput(v.heightInches, unit));
+  }
+
+  async function fetchFromUrl() {
+    const url = urlInput.trim();
+    if (!url) return;
+    setFetching(true);
+    setFetchError(null);
+    setExtraction(null);
+    try {
+      const res = await fetch("/api/extract", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url }),
+      });
+      const data = (await res.json()) as {
+        url?: string;
+        extracted?: {
+          name: string | null;
+          imageUrl: string | null;
+          widthInches: number | null;
+          heightInches: number | null;
+          variants: Variant[];
+          confidence: "high" | "medium" | "low";
+          warnings: string[];
+        };
+        imageDataUrl?: string | null;
+        error?: string;
+      };
+      if (!res.ok || !data.extracted) {
+        throw new Error(data.error || `Fetch failed (${res.status})`);
+      }
+      const e = data.extracted;
+      if (e.name) setName(e.name);
+      if (data.imageDataUrl) setImageFromDataUrl(data.imageDataUrl);
+      if (e.widthInches != null) setWidth(inchesToInput(e.widthInches, unit));
+      if (e.heightInches != null) setHeight(inchesToInput(e.heightInches, unit));
+      setExtraction({
+        confidence: e.confidence,
+        warnings: e.warnings ?? [],
+        variants: e.variants ?? [],
+      });
+    } catch (err) {
+      setFetchError(err instanceof Error ? err.message : "Failed to extract");
+    } finally {
+      setFetching(false);
+    }
   }
 
   function syncHeightFromWidth(nextWidth: string) {
@@ -63,6 +135,9 @@ export default function AddItemForm({ unit, onAdd }: Props) {
     setMatIn("2");
     setFrameIn("0.75");
     setFrameColor(DEFAULT_FRAME_COLOR);
+    setUrlInput("");
+    setExtraction(null);
+    setFetchError(null);
     if (fileInput.current) fileInput.current.value = "";
   }
 
@@ -92,8 +167,83 @@ export default function AddItemForm({ unit, onAdd }: Props) {
     <div className="flex flex-col gap-3 p-4 border-t border-zinc-200">
       <h2 className="text-sm font-semibold text-zinc-700">Add a piece</h2>
 
+      {/* URL paste */}
+      <div className="flex flex-col gap-1">
+        <label className="text-xs text-zinc-600">Paste product URL</label>
+        <div className="flex gap-1">
+          <input
+            type="url"
+            value={urlInput}
+            onChange={(e) => setUrlInput(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                void fetchFromUrl();
+              }
+            }}
+            placeholder="https://..."
+            className="flex-1 border border-zinc-300 rounded px-2 py-1 text-sm min-w-0"
+          />
+          <button
+            type="button"
+            onClick={() => void fetchFromUrl()}
+            disabled={!urlInput || fetching}
+            className="bg-zinc-100 border border-zinc-300 rounded px-3 py-1 text-sm disabled:opacity-50"
+          >
+            {fetching ? "Fetching…" : "Fetch"}
+          </button>
+        </div>
+        {fetchError && (
+          <p className="text-xs text-red-600">{fetchError}</p>
+        )}
+        {extraction && (
+          <div className="text-xs flex flex-col gap-1 mt-1">
+            <p
+              className={
+                extraction.confidence === "high"
+                  ? "text-green-700"
+                  : extraction.confidence === "medium"
+                    ? "text-amber-700"
+                    : "text-red-700"
+              }
+            >
+              {extraction.confidence === "high"
+                ? "Extracted with high confidence — review and add."
+                : extraction.confidence === "medium"
+                  ? "Extracted — please double-check the dimensions."
+                  : "Couldn't confidently extract dimensions — enter them manually."}
+            </p>
+            {extraction.warnings.map((w, i) => (
+              <p key={i} className="text-zinc-600">
+                • {w}
+              </p>
+            ))}
+            {extraction.variants.length > 0 && (
+              <div className="mt-1">
+                <p className="text-zinc-600">Sizes available — pick one:</p>
+                <div className="flex flex-wrap gap-1 mt-1">
+                  {extraction.variants.map((v, i) => (
+                    <button
+                      key={i}
+                      type="button"
+                      onClick={() => applyVariant(v)}
+                      className="border border-zinc-300 rounded px-2 py-1 text-xs hover:bg-zinc-50"
+                    >
+                      {v.widthInches}″ × {v.heightInches}″
+                      {v.label ? ` — ${v.label}` : ""}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      <div className="text-xs text-zinc-400 text-center">— or —</div>
+
       <label className="flex flex-col gap-1 text-xs text-zinc-600">
-        Image
+        Upload an image
         <input
           ref={fileInput}
           type="file"

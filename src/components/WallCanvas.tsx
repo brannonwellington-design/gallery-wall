@@ -4,6 +4,7 @@ import { forwardRef, useCallback, useEffect, useRef, useState } from "react";
 import { Stage, Layer, Rect, Line, Text, Group } from "react-konva";
 import type Konva from "konva";
 import type { Item, Room } from "@/lib/types";
+import { DEFAULT_EYE_LINE_HEIGHT_MM } from "@/lib/defaults";
 import { formatLength } from "@/lib/units";
 import { computeSnap, type Guide, type Rect as SnapRect } from "@/lib/snap";
 import ItemNode from "./ItemNode";
@@ -76,6 +77,17 @@ const WallCanvas = forwardRef<Konva.Stage, Props>(function WallCanvas(
   const offsetX = (size.w - wallPxW) / 2;
   const offsetY = (size.h - wallPxH) / 2;
 
+  const eyeLineEnabled = room.eyeLineEnabled ?? true;
+  const eyeLineHeight = room.eyeLineHeight ?? DEFAULT_EYE_LINE_HEIGHT_MM;
+  // Eye-line stored as height from FLOOR; in wall coords (y grows down) it
+  // lives at (wallHeight - eyeLineHeight). Only valid when within the wall.
+  const eyeLineY =
+    eyeLineEnabled &&
+    eyeLineHeight > 0 &&
+    eyeLineHeight < room.wallHeight
+      ? room.wallHeight - eyeLineHeight
+      : null;
+
   // Build a per-item dragBoundFunc that snaps in mm and returns absolute
   // stage coords for Konva to use as the new node position.
   const makeDragBoundFunc = useCallback(
@@ -100,6 +112,7 @@ const WallCanvas = forwardRef<Konva.Stage, Props>(function WallCanvas(
         wall: { width: room.wallWidth, height: room.wallHeight },
         threshold: SNAP_THRESHOLD_PX / scale,
         enabled: snapEnabled && !altPressed.current,
+        eyeLineY: eyeLineY ?? undefined,
       });
       // Update guide state for rendering (batched by React).
       setGuides(result.guides);
@@ -109,7 +122,7 @@ const WallCanvas = forwardRef<Konva.Stage, Props>(function WallCanvas(
         y: offsetY + result.y * scale,
       };
     },
-    [offsetX, offsetY, scale, room.items, room.wallWidth, room.wallHeight, snapEnabled],
+    [offsetX, offsetY, scale, room.items, room.wallWidth, room.wallHeight, snapEnabled, eyeLineY],
   );
 
   // Decide which rect to show measurements for.
@@ -156,6 +169,31 @@ const WallCanvas = forwardRef<Konva.Stage, Props>(function WallCanvas(
               stroke="#9ca3af"
               strokeWidth={1}
             />
+            {eyeLineY != null && (
+              <>
+                <Line
+                  points={[
+                    offsetX,
+                    offsetY + eyeLineY * scale,
+                    offsetX + wallPxW,
+                    offsetY + eyeLineY * scale,
+                  ]}
+                  stroke="#d97706"
+                  strokeWidth={1}
+                  dash={[6, 4]}
+                  opacity={0.55}
+                  listening={false}
+                />
+                <Text
+                  text={`eye ${formatLength(eyeLineHeight, room.unit, 1)}`}
+                  x={offsetX + wallPxW + 6}
+                  y={offsetY + eyeLineY * scale - 7}
+                  fontSize={10}
+                  fill="#92400e"
+                  listening={false}
+                />
+              </>
+            )}
           </Layer>
 
           {/* Items (positioned relative to wall origin) */}
@@ -250,6 +288,8 @@ function guideColor(reason: Guide["reason"]): string {
       return "#ec4899";
     case "equal-spacing":
       return "#10b981";
+    case "eye-line":
+      return "#d97706";
   }
 }
 

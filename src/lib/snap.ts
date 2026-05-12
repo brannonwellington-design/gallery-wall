@@ -18,6 +18,12 @@ export type SnapInput = {
   threshold: number;
   /** When false, returns the input position with no guides. */
   enabled: boolean;
+  /**
+   * Optional y (in mm from the top of the wall) of a horizontal gallery
+   * eye line. When set, the dragged item's vertical center magnetises to
+   * this line. Omit to disable eye-line snapping.
+   */
+  eyeLineY?: number;
 };
 
 export type Guide =
@@ -31,7 +37,8 @@ export type GuideReason =
   | "wall-center"
   | "item-edge"
   | "item-center"
-  | "equal-spacing";
+  | "equal-spacing"
+  | "eye-line";
 
 export type SnapResult = {
   x: number;
@@ -51,7 +58,7 @@ type Candidate = {
 };
 
 export function computeSnap(input: SnapInput): SnapResult {
-  const { dragged, others, wall, threshold, enabled } = input;
+  const { dragged, others, wall, threshold, enabled, eyeLineY } = input;
 
   if (!enabled) {
     return { x: dragged.x, y: dragged.y, guides: [] };
@@ -103,6 +110,17 @@ export function computeSnap(input: SnapInput): SnapResult {
         span: [0, wall.width],
       });
     }
+  }
+
+  // Eye-line snap: center of art (middle anchor) lands on the line.
+  // Gallery convention is "57\" to center" so a single candidate is enough.
+  if (eyeLineY != null) {
+    candidatesY.push({
+      pos: eyeLineY - dragged.height / 2,
+      guideAt: eyeLineY,
+      reason: "eye-line",
+      span: [0, wall.width],
+    });
   }
 
   // --- Item-to-item snaps ---

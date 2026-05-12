@@ -13,11 +13,15 @@ type Props = {
   wallWidthMm: number;
   wallHeightMm: number;
   snapEnabled: boolean;
+  eyeLineEnabled: boolean;
+  eyeLineHeightMm: number;
   saveStatus: SaveStatus;
   onChangeName: (name: string) => void;
   onChangeUnit: (unit: Unit) => void;
   onChangeWall: (widthMm: number, heightMm: number) => void;
   onChangeSnap: (enabled: boolean) => void;
+  onChangeEyeLineEnabled: (enabled: boolean) => void;
+  onChangeEyeLineHeight: (heightMm: number) => void;
   onExportPNG: () => void;
   onExportPDF: () => void;
   onClear: () => void;
@@ -29,24 +33,32 @@ export default function Toolbar({
   wallWidthMm,
   wallHeightMm,
   snapEnabled,
+  eyeLineEnabled,
+  eyeLineHeightMm,
   saveStatus,
   onChangeName,
   onChangeUnit,
   onChangeWall,
   onChangeSnap,
+  onChangeEyeLineEnabled,
+  onChangeEyeLineHeight,
   onExportPNG,
   onExportPDF,
   onClear,
 }: Props) {
   const [wInput, setWInput] = useState(() => fromMm(wallWidthMm, unit).toFixed(1));
   const [hInput, setHInput] = useState(() => fromMm(wallHeightMm, unit).toFixed(1));
+  const [eyeInput, setEyeInput] = useState(() =>
+    fromMm(eyeLineHeightMm, unit).toFixed(1),
+  );
   const [nameInput, setNameInput] = useState(roomName);
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setWInput(fromMm(wallWidthMm, unit).toFixed(1));
     setHInput(fromMm(wallHeightMm, unit).toFixed(1));
-  }, [wallWidthMm, wallHeightMm, unit]);
+    setEyeInput(fromMm(eyeLineHeightMm, unit).toFixed(1));
+  }, [wallWidthMm, wallHeightMm, eyeLineHeightMm, unit]);
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -58,6 +70,15 @@ export default function Toolbar({
     const h = Number(hInput);
     if (w > 0 && h > 0) {
       onChangeWall(toMm(w, unit), toMm(h, unit));
+    }
+  }
+
+  function commitEyeLine() {
+    const v = Number(eyeInput);
+    if (v > 0) {
+      onChangeEyeLineHeight(toMm(v, unit));
+    } else {
+      setEyeInput(fromMm(eyeLineHeightMm, unit).toFixed(1));
     }
   }
 
@@ -155,6 +176,36 @@ export default function Toolbar({
       >
         Snap: {snapEnabled ? "on" : "off"}
       </button>
+
+      <div className="flex items-center gap-2 ml-2 pl-2 border-l border-zinc-200">
+        <button
+          type="button"
+          onClick={() => onChangeEyeLineEnabled(!eyeLineEnabled)}
+          title={`Toggle the 57" gallery eye line`}
+          className={`border rounded px-2 py-1 text-xs ${
+            eyeLineEnabled
+              ? "bg-amber-50 border-amber-300 text-amber-800"
+              : "bg-white border-zinc-300 text-zinc-500"
+          }`}
+        >
+          Eye line: {eyeLineEnabled ? "on" : "off"}
+        </button>
+        <input
+          type="number"
+          step="0.5"
+          min="0"
+          value={eyeInput}
+          onChange={(e) => setEyeInput(e.target.value)}
+          onBlur={commitEyeLine}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+          }}
+          className="w-16 border border-zinc-300 rounded px-2 py-1 text-sm disabled:opacity-50"
+          aria-label="Eye line height from floor"
+          disabled={!eyeLineEnabled}
+          title="Height from floor to center of art"
+        />
+      </div>
 
       <div className="flex-1" />
 

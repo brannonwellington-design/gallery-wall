@@ -32,6 +32,11 @@ export type Room = {
   wallHeight: number;
   unit: Unit;
   items: Item[];
+  // Gallery eye line: a horizontal guide measured from the floor up to the
+  // center of artwork. Default 57" (museum standard). When enabled,
+  // dragged pieces snap their vertical center to this height.
+  eyeLineHeight?: number;
+  eyeLineEnabled?: boolean;
 };
 
 export type RoomSummary = {

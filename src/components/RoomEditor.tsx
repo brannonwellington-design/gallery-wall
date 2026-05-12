@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import type Konva from "konva";
 import type { Frame, Item, Room, Unit } from "@/lib/types";
-import { makeDefaultRoom } from "@/lib/defaults";
+import { DEFAULT_EYE_LINE_HEIGHT_MM, makeDefaultRoom } from "@/lib/defaults";
 import { cropToOpaqueBounds } from "@/lib/image";
 import { toMm } from "@/lib/units";
 import AddItemForm from "./AddItemForm";
@@ -279,11 +279,19 @@ export default function RoomEditor({ roomId, initialRoom }: Props) {
         wallWidthMm={room.wallWidth}
         wallHeightMm={room.wallHeight}
         snapEnabled={snapEnabled}
+        eyeLineEnabled={room.eyeLineEnabled ?? true}
+        eyeLineHeightMm={room.eyeLineHeight ?? DEFAULT_EYE_LINE_HEIGHT_MM}
         saveStatus={saveStatus}
         onChangeName={changeName}
         onChangeUnit={changeUnit}
         onChangeWall={changeWall}
         onChangeSnap={setSnapEnabled}
+        onChangeEyeLineEnabled={(enabled) =>
+          setRoom((r) => ({ ...r, eyeLineEnabled: enabled }))
+        }
+        onChangeEyeLineHeight={(heightMm) =>
+          setRoom((r) => ({ ...r, eyeLineHeight: heightMm }))
+        }
         onExportPNG={exportPNG}
         onExportPDF={exportPDF}
         onClear={clearWall}

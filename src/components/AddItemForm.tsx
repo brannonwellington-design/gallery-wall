@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { Frame, Unit } from "@/lib/types";
 import { toMm } from "@/lib/units";
+import { downscaleImage } from "@/lib/image";
 
 type Props = {
   unit: Unit;
@@ -130,7 +131,10 @@ export default function AddItemForm({ unit, onAdd }: Props) {
       if (!res.ok || !data.extracted) {
         throw new Error(data.error || `Fetch failed (${res.status})`);
       }
-      if (data.imageDataUrl) setImageDataUrlWithProbe(data.imageDataUrl);
+      if (data.imageDataUrl) {
+        const small = await downscaleImage(data.imageDataUrl);
+        setImageDataUrlWithProbe(small);
+      }
       applyExtraction(data.extracted);
     } catch (err) {
       setFetchError(err instanceof Error ? err.message : "Failed to extract");
@@ -141,9 +145,12 @@ export default function AddItemForm({ unit, onAdd }: Props) {
 
   async function handleUserImage(file: File) {
     if (!file.type.startsWith("image/")) return;
-    const dataUrl = await readAsDataUrl(file);
+    const rawDataUrl = await readAsDataUrl(file);
+    // Downscale once, then use the same compact image for wall storage and
+    // vision extraction. Keeps PATCH bodies under Vercel's limit and
+    // halves the vision token bill.
+    const dataUrl = await downscaleImage(rawDataUrl);
     setImageDataUrlWithProbe(dataUrl);
-    // Auto-extract from the image (vision flow).
     setFetching(true);
     setFetchError(null);
     setExtraction(null);

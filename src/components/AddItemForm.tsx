@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { Frame, Unit } from "@/lib/types";
 import { toMm } from "@/lib/units";
 
@@ -21,6 +21,15 @@ type Variant = {
   widthInches: number;
   heightInches: number;
   label: string | null;
+};
+
+type ExtractedPayload = {
+  name: string | null;
+  widthInches: number | null;
+  heightInches: number | null;
+  variants: Variant[];
+  confidence: "high" | "medium" | "low";
+  warnings: string[];
 };
 
 type ExtractionState = {
@@ -44,26 +53,56 @@ export default function AddItemForm({ unit, onAdd }: Props) {
   const [frameIn, setFrameIn] = useState("0.75");
   const [frameColor, setFrameColor] = useState(DEFAULT_FRAME_COLOR);
   const fileInput = useRef<HTMLInputElement>(null);
+  const formRef = useRef<HTMLDivElement>(null);
 
-  // URL extraction state
   const [urlInput, setUrlInput] = useState("");
   const [fetching, setFetching] = useState(false);
   const [fetchError, setFetchError] = useState<string | null>(null);
   const [extraction, setExtraction] = useState<ExtractionState>(null);
+  const [dragOver, setDragOver] = useState(false);
 
   const unitLabel = unit === "in" ? '"' : "cm";
 
-  function setImageFromDataUrl(dataUrl: string) {
+  function setImageDataUrlWithProbe(dataUrl: string) {
     setImageDataUrl(dataUrl);
     const probe = new Image();
     probe.onload = () => setImageRatio(probe.width / probe.height);
     probe.src = dataUrl;
   }
 
-  function handleFile(file: File) {
-    const reader = new FileReader();
-    reader.onload = () => setImageFromDataUrl(reader.result as string);
-    reader.readAsDataURL(file);
+  // Paste-from-clipboard handler, scoped to the form.
+  useEffect(() => {
+    const el = formRef.current;
+    if (!el) return;
+    const onPaste = (e: ClipboardEvent) => {
+      const items = e.clipboardData?.items;
+      if (!items) return;
+      for (const item of items) {
+        if (item.type.startsWith("image/")) {
+          const file = item.getAsFile();
+          if (file) {
+            e.preventDefault();
+            void handleUserImage(file);
+            return;
+          }
+        }
+      }
+    };
+    el.addEventListener("paste", onPaste);
+    return () => el.removeEventListener("paste", onPaste);
+    // handleUserImage is stable from the form's perspective; we attach once.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  function applyExtraction(e: ExtractedPayload) {
+    if (e.name) setName(e.name);
+    if (e.widthInches != null) setWidth(inchesToInput(e.widthInches, unit));
+    if (e.heightInches != null) setHeight(inchesToInput(e.heightInches, unit));
+    setExtraction({
+      confidence: e.confidence,
+      warnings: e.warnings ?? [],
+      variants: e.variants ?? [],
+    });
   }
 
   function applyVariant(v: Variant) {
@@ -84,32 +123,44 @@ export default function AddItemForm({ unit, onAdd }: Props) {
         body: JSON.stringify({ url }),
       });
       const data = (await res.json()) as {
-        url?: string;
-        extracted?: {
-          name: string | null;
-          imageUrl: string | null;
-          widthInches: number | null;
-          heightInches: number | null;
-          variants: Variant[];
-          confidence: "high" | "medium" | "low";
-          warnings: string[];
-        };
+        extracted?: ExtractedPayload & { imageUrl: string | null };
         imageDataUrl?: string | null;
         error?: string;
       };
       if (!res.ok || !data.extracted) {
         throw new Error(data.error || `Fetch failed (${res.status})`);
       }
-      const e = data.extracted;
-      if (e.name) setName(e.name);
-      if (data.imageDataUrl) setImageFromDataUrl(data.imageDataUrl);
-      if (e.widthInches != null) setWidth(inchesToInput(e.widthInches, unit));
-      if (e.heightInches != null) setHeight(inchesToInput(e.heightInches, unit));
-      setExtraction({
-        confidence: e.confidence,
-        warnings: e.warnings ?? [],
-        variants: e.variants ?? [],
+      if (data.imageDataUrl) setImageDataUrlWithProbe(data.imageDataUrl);
+      applyExtraction(data.extracted);
+    } catch (err) {
+      setFetchError(err instanceof Error ? err.message : "Failed to extract");
+    } finally {
+      setFetching(false);
+    }
+  }
+
+  async function handleUserImage(file: File) {
+    if (!file.type.startsWith("image/")) return;
+    const dataUrl = await readAsDataUrl(file);
+    setImageDataUrlWithProbe(dataUrl);
+    // Auto-extract from the image (vision flow).
+    setFetching(true);
+    setFetchError(null);
+    setExtraction(null);
+    try {
+      const res = await fetch("/api/extract", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ imageDataUrl: dataUrl }),
       });
+      const data = (await res.json()) as {
+        extracted?: ExtractedPayload;
+        error?: string;
+      };
+      if (!res.ok || !data.extracted) {
+        throw new Error(data.error || `Extraction failed (${res.status})`);
+      }
+      applyExtraction(data.extracted);
     } catch (err) {
       setFetchError(err instanceof Error ? err.message : "Failed to extract");
     } finally {
@@ -163,8 +214,30 @@ export default function AddItemForm({ unit, onAdd }: Props) {
     reset();
   }
 
+  function onDrop(e: React.DragEvent<HTMLElement>) {
+    e.preventDefault();
+    setDragOver(false);
+    const file = e.dataTransfer.files?.[0];
+    if (file) void handleUserImage(file);
+  }
+
   return (
-    <div className="flex flex-col gap-3 p-4 border-t border-zinc-200">
+    <div
+      ref={formRef}
+      className="flex flex-col gap-3 p-4 border-t border-zinc-200"
+      onDragEnter={(e) => {
+        e.preventDefault();
+        if (Array.from(e.dataTransfer.types).includes("Files")) setDragOver(true);
+      }}
+      onDragOver={(e) => {
+        e.preventDefault();
+        if (Array.from(e.dataTransfer.types).includes("Files")) setDragOver(true);
+      }}
+      onDragLeave={(e) => {
+        if (e.currentTarget === e.target) setDragOver(false);
+      }}
+      onDrop={onDrop}
+    >
       <h2 className="text-sm font-semibold text-zinc-700">Add a piece</h2>
 
       {/* URL paste */}
@@ -190,76 +263,95 @@ export default function AddItemForm({ unit, onAdd }: Props) {
             disabled={!urlInput || fetching}
             className="bg-zinc-100 border border-zinc-300 rounded px-3 py-1 text-sm disabled:opacity-50"
           >
-            {fetching ? "Fetching…" : "Fetch"}
+            {fetching ? "Working…" : "Fetch"}
           </button>
         </div>
-        {fetchError && (
-          <p className="text-xs text-red-600">{fetchError}</p>
-        )}
-        {extraction && (
-          <div className="text-xs flex flex-col gap-1 mt-1">
-            <p
-              className={
-                extraction.confidence === "high"
-                  ? "text-green-700"
-                  : extraction.confidence === "medium"
-                    ? "text-amber-700"
-                    : "text-red-700"
-              }
-            >
-              {extraction.confidence === "high"
-                ? "Extracted with high confidence — review and add."
-                : extraction.confidence === "medium"
-                  ? "Extracted — please double-check the dimensions."
-                  : "Couldn't confidently extract dimensions — enter them manually."}
-            </p>
-            {extraction.warnings.map((w, i) => (
-              <p key={i} className="text-zinc-600">
-                • {w}
-              </p>
-            ))}
-            {extraction.variants.length > 0 && (
-              <div className="mt-1">
-                <p className="text-zinc-600">Sizes available — pick one:</p>
-                <div className="flex flex-wrap gap-1 mt-1">
-                  {extraction.variants.map((v, i) => (
-                    <button
-                      key={i}
-                      type="button"
-                      onClick={() => applyVariant(v)}
-                      className="border border-zinc-300 rounded px-2 py-1 text-xs hover:bg-zinc-50"
-                    >
-                      {v.widthInches}″ × {v.heightInches}″
-                      {v.label ? ` — ${v.label}` : ""}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
-        )}
       </div>
 
       <div className="text-xs text-zinc-400 text-center">— or —</div>
 
-      <label className="flex flex-col gap-1 text-xs text-zinc-600">
-        Upload an image
+      {/* Drop zone */}
+      <div
+        onClick={() => fileInput.current?.click()}
+        className={`border-2 border-dashed rounded p-4 text-center text-xs cursor-pointer transition-colors ${
+          dragOver
+            ? "border-blue-400 bg-blue-50 text-blue-700"
+            : "border-zinc-300 text-zinc-500 hover:border-zinc-400 hover:bg-zinc-50"
+        }`}
+      >
+        {imageDataUrl ? (
+          <div className="flex flex-col items-center gap-2">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={imageDataUrl} alt="preview" className="max-h-24" />
+            <span className="text-zinc-500">Click to replace, or drop another image</span>
+          </div>
+        ) : (
+          <>
+            <div className="font-medium text-zinc-700 mb-1">
+              Drop a screenshot, paste with ⌘V, or click to choose
+            </div>
+            <div className="text-zinc-500">
+              Works on bot-blocked sites (West Elm, Pottery Barn, …) — screenshot the page in your
+              browser, drop it here, and Claude reads the dimensions from the image.
+            </div>
+          </>
+        )}
         <input
           ref={fileInput}
           type="file"
           accept="image/*"
           onChange={(e) => {
             const f = e.target.files?.[0];
-            if (f) handleFile(f);
+            if (f) void handleUserImage(f);
           }}
-          className="text-xs"
+          className="hidden"
         />
-      </label>
+      </div>
 
-      {imageDataUrl && (
-        <div className="border border-zinc-200 rounded p-2 bg-zinc-50 flex items-center justify-center">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={imageDataUrl} alt="preview" className="max-h-24" />
+      {/* Extraction status */}
+      {fetchError && (
+        <p className="text-xs text-red-600 break-words">{fetchError}</p>
+      )}
+      {extraction && (
+        <div className="text-xs flex flex-col gap-1">
+          <p
+            className={
+              extraction.confidence === "high"
+                ? "text-green-700"
+                : extraction.confidence === "medium"
+                  ? "text-amber-700"
+                  : "text-zinc-600"
+            }
+          >
+            {extraction.confidence === "high"
+              ? "Extracted with high confidence — review and add."
+              : extraction.confidence === "medium"
+                ? "Extracted — please double-check the dimensions."
+                : "Couldn't confidently extract dimensions — enter them manually."}
+          </p>
+          {extraction.warnings.map((w, i) => (
+            <p key={i} className="text-zinc-600">
+              • {w}
+            </p>
+          ))}
+          {extraction.variants.length > 0 && (
+            <div className="mt-1">
+              <p className="text-zinc-600">Sizes available — pick one:</p>
+              <div className="flex flex-wrap gap-1 mt-1">
+                {extraction.variants.map((v, i) => (
+                  <button
+                    key={i}
+                    type="button"
+                    onClick={() => applyVariant(v)}
+                    className="border border-zinc-300 rounded px-2 py-1 text-xs hover:bg-zinc-50"
+                  >
+                    {v.widthInches}″ × {v.heightInches}″
+                    {v.label ? ` — ${v.label}` : ""}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -354,4 +446,13 @@ export default function AddItemForm({ unit, onAdd }: Props) {
       </button>
     </div>
   );
+}
+
+function readAsDataUrl(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result as string);
+    reader.onerror = () => reject(reader.error);
+    reader.readAsDataURL(file);
+  });
 }

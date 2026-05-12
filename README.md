@@ -34,15 +34,17 @@ When this is unset, the rest of the app works fine — only URL ingestion is dis
 
 ### Sites that block URL ingestion
 
-Some retailers run bot-protection (Akamai, Cloudflare Bot Manager, PerimeterX) that returns 403 to any plain HTTP request, especially from cloud IPs like Vercel's. **West Elm, Pottery Barn, and some Etsy listings** fall in this bucket. The UI surfaces a clear "this site blocks automated requests" message when it happens.
+Some retailers run bot-protection (Akamai, Cloudflare Bot Manager, PerimeterX) that returns 403 to any plain HTTP request, especially from cloud IPs like Vercel's. **West Elm, Pottery Barn, and some Etsy listings** fall in this bucket. For those, **screenshot the product page in your browser and drop the screenshot into the form** — Claude reads the dimensions from the image with vision. Works on any site since your browser already passed the bot check.
 
-Workarounds, in order of effort:
+The image area in the add-form supports:
 
-- Enter the piece manually — the form is fully editable.
-- Try a different listing of the same product on a friendlier source.
-- Plug in a paid scraping service (ScrapingBee, Bright Data, Browserless) as a fallback in `src/lib/extract.ts`. Costs ~$0.001–0.01 per request. Ask and I'll wire one up.
+- Drag and drop from your desktop or another browser tab
+- Paste from clipboard (⌘V) — screenshot then paste, or copy an image
+- Click to choose a file
 
-Society6, Minted, Redbubble, and Shopify-hosted indie shops generally just work.
+Society6, Minted, Redbubble, and Shopify-hosted indie shops generally just work with the URL paste.
+
+If you ever want the URL path to work on Akamai-protected sites, plug in a paid scraping service (ScrapingBee, Bright Data, Browserless) as a fallback in `src/lib/extract.ts`. Costs ~$0.001–0.01 per request.
 
 ## Stack
 

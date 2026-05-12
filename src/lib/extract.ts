@@ -30,14 +30,14 @@ export type ExtractResult = {
   imageDataUrl: string | null;
 };
 
-// ---- Public entry point ----
+// ---- Public entry points ----
 
 export async function extractFromUrl(rawUrl: string): Promise<ExtractResult> {
   const url = normalizeUrl(rawUrl);
 
   const html = await fetchPage(url);
   const condensed = condenseHtml(html, url);
-  const extracted = await callClaude(condensed);
+  const extracted = await callClaudeText(condensed);
 
   let imageDataUrl: string | null = null;
   if (extracted.imageUrl) {
@@ -49,6 +49,32 @@ export async function extractFromUrl(rawUrl: string): Promise<ExtractResult> {
   }
 
   return { url, extracted, imageDataUrl };
+}
+
+const SUPPORTED_IMAGE_TYPES = new Set([
+  "image/jpeg",
+  "image/png",
+  "image/gif",
+  "image/webp",
+]);
+
+export async function extractFromImage(
+  imageDataUrl: string,
+): Promise<ExtractResult> {
+  const m = imageDataUrl.match(/^data:(image\/[^;,]+);base64,(.+)$/);
+  if (!m) {
+    throw new Error("Image must be a base64-encoded data URL.");
+  }
+  const mediaType = m[1].toLowerCase();
+  const base64 = m[2];
+  if (!SUPPORTED_IMAGE_TYPES.has(mediaType)) {
+    throw new Error(
+      `Unsupported image type ${mediaType}. Use PNG, JPEG, GIF, or WebP.`,
+    );
+  }
+
+  const extracted = await callClaudeVision(mediaType, base64);
+  return { url: "[image]", extracted, imageDataUrl: null };
 }
 
 // ---- Implementation ----
@@ -113,6 +139,40 @@ Fields:
   - "Width/height assignment based on image aspect ratio"
   - "No dimensions found in listing"
   Only include warnings that genuinely need attention; don't pad.`;
+
+const VISION_SYSTEM_PROMPT = `You are an extraction agent for a gallery-wall design tool.
+The user dropped an image — typically a screenshot of a product listing
+page, sometimes a photo of a product, sometimes a clean product image
+with no surrounding context. Extract whatever you can see.
+
+Return JSON exactly matching the provided schema. If a field is unknown,
+use null — do not invent values.
+
+Fields:
+
+- "name": the product title visible in the image (in the page header,
+  near the price, or as a clear caption).
+- "imageUrl": always null (the user already has the image).
+- "widthInches" and "heightInches": physical dimensions visible in the
+  image (specs section, size selector, label, description).
+  - If listed in cm or mm, convert to inches.
+  - Width is horizontal, height is vertical. If a single dimension
+    or paper size is shown, convert to width × height.
+  - If both art-size and framed-size are shown, prefer framed.
+  - Round to one decimal place.
+- "variants": if the image shows multiple sizes (a dropdown, a list,
+  a size selector), capture all of them and set top-level
+  widthInches/heightInches to the default or selected one.
+- "confidence":
+  - "high": explicit width × height clearly visible in the image
+  - "medium": dimensions inferred from a label, partially visible,
+    or width/height assignment is ambiguous
+  - "low": no dimensions visible (common for clean product photos)
+- "warnings": short notes for the designer:
+  - "Multiple sizes shown — pick one"
+  - "Image shows only the product; no dimensions visible — please enter manually"
+  - "Width/height assignment based on aspect ratio"
+  Only include warnings that need attention; don't pad.`;
 
 async function fetchPage(url: string): Promise<string> {
   let res: Response;
@@ -234,13 +294,8 @@ function condenseHtml(html: string, sourceUrl: string): string {
   return lines.join("\n");
 }
 
-async function callClaude(condensed: string): Promise<ExtractedProduct> {
-  const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) {
-    throw new Error("ANTHROPIC_API_KEY is not set");
-  }
-  const client = new Anthropic({ apiKey });
-
+async function callClaudeText(condensed: string): Promise<ExtractedProduct> {
+  const client = makeClient();
   const response = await client.messages.parse({
     model: "claude-opus-4-7",
     max_tokens: 4000,
@@ -252,19 +307,63 @@ async function callClaude(condensed: string): Promise<ExtractedProduct> {
     system: SYSTEM_PROMPT,
     messages: [{ role: "user", content: condensed }],
   });
+  return response.parsed_output ?? fallback("Couldn't parse the page — please fill in manually.");
+}
 
-  if (!response.parsed_output) {
-    return {
-      name: null,
-      imageUrl: null,
-      widthInches: null,
-      heightInches: null,
-      variants: [],
-      confidence: "low",
-      warnings: ["Could not parse the page — please fill in manually."],
-    };
-  }
-  return response.parsed_output;
+async function callClaudeVision(
+  mediaType: string,
+  base64: string,
+): Promise<ExtractedProduct> {
+  const client = makeClient();
+  const response = await client.messages.parse({
+    model: "claude-opus-4-7",
+    max_tokens: 4000,
+    thinking: { type: "adaptive" },
+    output_config: {
+      effort: "medium",
+      format: zodOutputFormat(ExtractedProductSchema),
+    },
+    system: VISION_SYSTEM_PROMPT,
+    messages: [
+      {
+        role: "user",
+        content: [
+          {
+            type: "image",
+            source: {
+              type: "base64",
+              media_type: mediaType as
+                | "image/jpeg"
+                | "image/png"
+                | "image/gif"
+                | "image/webp",
+              data: base64,
+            },
+          },
+          { type: "text", text: "Extract product info from this image." },
+        ],
+      },
+    ],
+  });
+  return response.parsed_output ?? fallback("Couldn't read the image — please fill in manually.");
+}
+
+function makeClient(): Anthropic {
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  if (!apiKey) throw new Error("ANTHROPIC_API_KEY is not set");
+  return new Anthropic({ apiKey });
+}
+
+function fallback(warning: string): ExtractedProduct {
+  return {
+    name: null,
+    imageUrl: null,
+    widthInches: null,
+    heightInches: null,
+    variants: [],
+    confidence: "low",
+    warnings: [warning],
+  };
 }
 
 async function downloadImage(url: string): Promise<string | null> {

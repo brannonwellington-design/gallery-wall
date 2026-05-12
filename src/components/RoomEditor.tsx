@@ -112,6 +112,67 @@ export default function RoomEditor({ roomId, initialRoom }: Props) {
     setSelectedId((prev) => (prev === id ? null : prev));
   }, []);
 
+  const [bgBusyId, setBgBusyId] = useState<string | null>(null);
+
+  const toggleBackground = useCallback(
+    async (id: string) => {
+      const item = room.items.find((i) => i.id === id);
+      if (!item) return;
+
+      // If the original is stashed, restore it without a network call.
+      if (item.imageOriginalDataUrl) {
+        setRoom((r) => ({
+          ...r,
+          items: r.items.map((it) =>
+            it.id === id
+              ? {
+                  ...it,
+                  imageDataUrl: it.imageOriginalDataUrl!,
+                  imageOriginalDataUrl: null,
+                }
+              : it,
+          ),
+        }));
+        return;
+      }
+
+      setBgBusyId(id);
+      try {
+        const res = await fetch("/api/remove-background", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ imageDataUrl: item.imageDataUrl }),
+        });
+        const data = (await res.json()) as {
+          imageDataUrl?: string;
+          error?: string;
+        };
+        if (!res.ok || !data.imageDataUrl) {
+          throw new Error(data.error || `Failed (${res.status})`);
+        }
+        setRoom((r) => ({
+          ...r,
+          items: r.items.map((it) =>
+            it.id === id
+              ? {
+                  ...it,
+                  imageOriginalDataUrl: it.imageDataUrl,
+                  imageDataUrl: data.imageDataUrl!,
+                }
+              : it,
+          ),
+        }));
+      } catch (e) {
+        alert(
+          `Couldn't remove background: ${e instanceof Error ? e.message : "Unknown error"}`,
+        );
+      } finally {
+        setBgBusyId(null);
+      }
+    },
+    [room.items],
+  );
+
   // Keyboard shortcuts when an item is selected.
   useEffect(() => {
     if (!selectedId) return;
@@ -198,8 +259,10 @@ export default function RoomEditor({ roomId, initialRoom }: Props) {
             items={room.items}
             unit={room.unit}
             selectedId={selectedId}
+            bgBusyId={bgBusyId}
             onSelect={setSelectedId}
             onRemove={removeItem}
+            onToggleBackground={toggleBackground}
           />
           <AddItemForm unit={room.unit} onAdd={addItem} />
         </aside>

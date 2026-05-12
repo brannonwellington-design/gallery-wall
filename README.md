@@ -46,6 +46,14 @@ Society6, Minted, Redbubble, and Shopify-hosted indie shops generally just work 
 
 If you want the URL path to work on Akamai-protected sites, add a `SCRAPINGBEE_API_KEY` to `.env.local` (and to your Vercel project env). The extractor automatically falls back to ScrapingBee when a direct fetch hits 401/403/429/503/520+. Each premium-proxy fetch uses 10 ScrapingBee credits (~$0.005 at paid tier; the 1000-credit free trial covers about 100 retailer fetches).
 
+## Enable background removal (optional)
+
+Each piece in the items panel gets a `−BG` button on hover. Click it to strip the listing-photo background — useful for unframed pieces or busy lifestyle shots. To enable, add to `.env.local` (and to your Vercel project env):
+
+- `REPLICATE_API_TOKEN` — get one at https://replicate.com/account/api-tokens
+
+Each call costs about $0.001 and takes 5–8 seconds. The original image is kept so you can toggle back (`+BG`).
+
 ## Stack
 
 - Next.js 16 (App Router) + TypeScript + Tailwind

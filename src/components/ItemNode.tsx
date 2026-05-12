@@ -58,17 +58,13 @@ export default function ItemNode({
             width={totalW * scale}
             height={totalH * scale}
             fill={item.frame.frameColor}
-            shadowColor="rgba(0,0,0,0.35)"
-            shadowBlur={6}
-            shadowOffsetY={3}
-            shadowOpacity={0.6}
           />
           <Rect
             x={frameW * scale}
             y={frameW * scale}
             width={(totalW - frameW * 2) * scale}
             height={(totalH - frameW * 2) * scale}
-            fill="#fafafa"
+            fill="#FBF9F4"
           />
         </>
       )}
@@ -86,7 +82,7 @@ export default function ItemNode({
           y={pad * scale}
           width={item.artWidth * scale}
           height={item.artHeight * scale}
-          fill="#e5e7eb"
+          fill="#E2DCCF"
         />
       )}
       {!item.frame && (
@@ -95,7 +91,7 @@ export default function ItemNode({
           y={pad * scale}
           width={item.artWidth * scale}
           height={item.artHeight * scale}
-          stroke="rgba(0,0,0,0.15)"
+          stroke="#B6B4AF"
           strokeWidth={1}
           listening={false}
         />
@@ -104,8 +100,8 @@ export default function ItemNode({
         <Rect
           width={totalW * scale}
           height={totalH * scale}
-          stroke="#2563eb"
-          strokeWidth={2}
+          stroke="#0021CC"
+          strokeWidth={1}
           dash={[6, 4]}
           listening={false}
         />
@@ -113,9 +109,10 @@ export default function ItemNode({
       {selected && (
         <Text
           text={item.name || "Untitled"}
-          y={-18}
-          fontSize={12}
-          fill="#1e3a8a"
+          y={-16}
+          fontSize={10}
+          fontFamily="Inter, sans-serif"
+          fill="#0021CC"
         />
       )}
     </Group>

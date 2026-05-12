@@ -2,8 +2,10 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { ArrowLeft, Download, FileDown, Trash2 } from "lucide-react";
 import type { Unit } from "@/lib/types";
 import { fromMm, toMm } from "@/lib/units";
+import BrandedHeader from "./BrandedHeader";
 
 export type SaveStatus = "idle" | "saving" | "saved" | "error";
 
@@ -68,18 +70,7 @@ export default function Toolbar({
   function commitWall() {
     const w = Number(wInput);
     const h = Number(hInput);
-    if (w > 0 && h > 0) {
-      onChangeWall(toMm(w, unit), toMm(h, unit));
-    }
-  }
-
-  function commitEyeLine() {
-    const v = Number(eyeInput);
-    if (v > 0) {
-      onChangeEyeLineHeight(toMm(v, unit));
-    } else {
-      setEyeInput(fromMm(eyeLineHeightMm, unit).toFixed(1));
-    }
+    if (w > 0 && h > 0) onChangeWall(toMm(w, unit), toMm(h, unit));
   }
 
   function commitName() {
@@ -88,149 +79,188 @@ export default function Toolbar({
     else setNameInput(roomName);
   }
 
+  function commitEyeLine() {
+    const v = Number(eyeInput);
+    if (v > 0) onChangeEyeLineHeight(toMm(v, unit));
+    else setEyeInput(fromMm(eyeLineHeightMm, unit).toFixed(1));
+  }
+
   return (
-    <header className="flex items-center gap-3 px-4 py-2 border-b border-zinc-200 bg-white">
-      <Link
-        href="/"
-        className="text-xs text-zinc-500 hover:text-zinc-900 px-2 py-1 -ml-2 rounded hover:bg-zinc-100"
-        title="Back to all rooms"
-      >
-        ← Rooms
-      </Link>
+    <>
+      <BrandedHeader title={roomName || "Untitled Room"} variant="inline" />
 
-      <input
-        type="text"
-        value={nameInput}
-        onChange={(e) => setNameInput(e.target.value)}
-        onBlur={commitName}
-        onKeyDown={(e) => {
-          if (e.key === "Enter") (e.target as HTMLInputElement).blur();
-        }}
-        className="text-base font-semibold text-zinc-800 bg-transparent border border-transparent hover:border-zinc-200 focus:border-zinc-300 rounded px-2 py-1 outline-none min-w-0 flex-shrink"
-        aria-label="Room name"
-      />
+      <header className="flex items-center gap-3 px-6 py-3 border-b border-surface-tertiary bg-surface-primary">
+        <Link
+          href="/"
+          className="inline-flex items-center gap-1 h-8 px-2 -ml-2 rounded-md text-[12px] leading-4 text-content-secondary hover:text-content-primary hover:bg-surface-secondary"
+          title="Back to rooms"
+        >
+          <ArrowLeft size={14} strokeWidth={1.25} aria-hidden="true" />
+          Rooms
+        </Link>
 
-      <SaveIndicator status={saveStatus} />
-
-      <div className="flex items-center gap-2 ml-4 pl-4 border-l border-zinc-200">
-        <span className="text-xs text-zinc-500">Wall</span>
         <input
-          type="number"
-          step="0.5"
-          min="0"
-          value={wInput}
-          onChange={(e) => setWInput(e.target.value)}
-          onBlur={commitWall}
+          type="text"
+          value={nameInput}
+          onChange={(e) => setNameInput(e.target.value)}
+          onBlur={commitName}
           onKeyDown={(e) => {
             if (e.key === "Enter") (e.target as HTMLInputElement).blur();
           }}
-          className="w-20 border border-zinc-300 rounded px-2 py-1 text-sm"
-          aria-label="Wall width"
+          className="h-8 px-2 text-[16px] leading-6 text-content-primary bg-transparent border border-transparent hover:border-surface-tertiary focus:border-content-disabled rounded-md min-w-0 flex-shrink"
+          aria-label="Room name"
         />
-        <span className="text-xs text-zinc-500">×</span>
-        <input
-          type="number"
-          step="0.5"
-          min="0"
-          value={hInput}
-          onChange={(e) => setHInput(e.target.value)}
-          onBlur={commitWall}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") (e.target as HTMLInputElement).blur();
-          }}
-          className="w-20 border border-zinc-300 rounded px-2 py-1 text-sm"
-          aria-label="Wall height"
-        />
-      </div>
 
-      <div className="flex items-center gap-1 border border-zinc-300 rounded overflow-hidden">
+        <SaveIndicator status={saveStatus} />
+
+        <div className="flex items-center gap-2 ml-2 pl-3 border-l border-surface-tertiary">
+          <span className="text-[10px] leading-4 text-content-disabled">Wall</span>
+          <NumInput value={wInput} onChange={setWInput} onCommit={commitWall} ariaLabel="Wall width" />
+          <span className="text-[12px] leading-4 text-content-disabled">×</span>
+          <NumInput value={hInput} onChange={setHInput} onCommit={commitWall} ariaLabel="Wall height" />
+        </div>
+
+        <UnitToggle unit={unit} onChange={onChangeUnit} />
+
+        <ToggleButton
+          active={snapEnabled}
+          onClick={() => onChangeSnap(!snapEnabled)}
+          title="Toggle snap (hold Alt to disable while dragging)"
+        >
+          Snap
+        </ToggleButton>
+
+        <div className="flex items-center gap-2 ml-1 pl-3 border-l border-surface-tertiary">
+          <ToggleButton
+            active={eyeLineEnabled}
+            onClick={() => onChangeEyeLineEnabled(!eyeLineEnabled)}
+            title={`Toggle the 57" gallery eye line`}
+          >
+            Eye line
+          </ToggleButton>
+          <NumInput
+            value={eyeInput}
+            onChange={setEyeInput}
+            onCommit={commitEyeLine}
+            disabled={!eyeLineEnabled}
+            ariaLabel="Eye line height from floor"
+          />
+        </div>
+
+        <div className="flex-1" />
+
         <button
           type="button"
-          onClick={() => onChangeUnit("in")}
-          className={`px-2 py-1 text-xs ${
-            unit === "in" ? "bg-zinc-900 text-white" : "bg-white text-zinc-700"
-          }`}
+          onClick={onExportPNG}
+          className="inline-flex items-center gap-1 h-8 px-3 rounded-md text-[12px] leading-4 text-content-secondary hover:text-content-primary hover:bg-surface-secondary"
         >
-          in
+          <Download size={14} strokeWidth={1.25} aria-hidden="true" />
+          PNG
         </button>
         <button
           type="button"
-          onClick={() => onChangeUnit("cm")}
-          className={`px-2 py-1 text-xs ${
-            unit === "cm" ? "bg-zinc-900 text-white" : "bg-white text-zinc-700"
-          }`}
+          onClick={onExportPDF}
+          className="inline-flex items-center gap-1 h-8 px-3 rounded-md text-[12px] leading-4 text-content-secondary hover:text-content-primary hover:bg-surface-secondary"
         >
-          cm
+          <FileDown size={14} strokeWidth={1.25} aria-hidden="true" />
+          PDF
         </button>
-      </div>
-
-      <button
-        type="button"
-        onClick={() => onChangeSnap(!snapEnabled)}
-        title="Toggle snap (hold Alt to disable while dragging)"
-        className={`border rounded px-2 py-1 text-xs ${
-          snapEnabled
-            ? "bg-blue-50 border-blue-300 text-blue-700"
-            : "bg-white border-zinc-300 text-zinc-500"
-        }`}
-      >
-        Snap: {snapEnabled ? "on" : "off"}
-      </button>
-
-      <div className="flex items-center gap-2 ml-2 pl-2 border-l border-zinc-200">
         <button
           type="button"
-          onClick={() => onChangeEyeLineEnabled(!eyeLineEnabled)}
-          title={`Toggle the 57" gallery eye line`}
-          className={`border rounded px-2 py-1 text-xs ${
-            eyeLineEnabled
-              ? "bg-amber-50 border-amber-300 text-amber-800"
-              : "bg-white border-zinc-300 text-zinc-500"
+          onClick={onClear}
+          className="inline-flex items-center gap-1 h-8 px-3 rounded-md text-[12px] leading-4 text-content-secondary hover:text-content-negative hover:bg-surface-negative-secondary"
+          title="Clear wall"
+        >
+          <Trash2 size={14} strokeWidth={1.25} aria-hidden="true" />
+          Clear
+        </button>
+      </header>
+    </>
+  );
+}
+
+function NumInput({
+  value,
+  onChange,
+  onCommit,
+  ariaLabel,
+  disabled,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  onCommit: () => void;
+  ariaLabel: string;
+  disabled?: boolean;
+}) {
+  return (
+    <input
+      type="number"
+      step="0.5"
+      min="0"
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      onBlur={onCommit}
+      onKeyDown={(e) => {
+        if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+      }}
+      disabled={disabled}
+      aria-label={ariaLabel}
+      className="w-16 h-8 px-2 border border-surface-tertiary rounded-md text-[14px] leading-5 text-content-primary bg-surface-primary tabular disabled:opacity-50"
+    />
+  );
+}
+
+function UnitToggle({
+  unit,
+  onChange,
+}: {
+  unit: Unit;
+  onChange: (u: Unit) => void;
+}) {
+  return (
+    <div className="flex items-center h-8 border border-surface-tertiary rounded-md overflow-hidden">
+      {(["in", "cm"] as const).map((u) => (
+        <button
+          key={u}
+          type="button"
+          onClick={() => onChange(u)}
+          className={`h-full px-2 text-[12px] leading-4 ${
+            unit === u
+              ? "bg-surface-inverse-primary text-content-inverse-primary"
+              : "bg-surface-primary text-content-secondary hover:text-content-primary"
           }`}
         >
-          Eye line: {eyeLineEnabled ? "on" : "off"}
+          {u}
         </button>
-        <input
-          type="number"
-          step="0.5"
-          min="0"
-          value={eyeInput}
-          onChange={(e) => setEyeInput(e.target.value)}
-          onBlur={commitEyeLine}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") (e.target as HTMLInputElement).blur();
-          }}
-          className="w-16 border border-zinc-300 rounded px-2 py-1 text-sm disabled:opacity-50"
-          aria-label="Eye line height from floor"
-          disabled={!eyeLineEnabled}
-          title="Height from floor to center of art"
-        />
-      </div>
+      ))}
+    </div>
+  );
+}
 
-      <div className="flex-1" />
-
-      <button
-        type="button"
-        onClick={onExportPNG}
-        className="border border-zinc-300 rounded px-3 py-1 text-sm text-zinc-700 hover:bg-zinc-100"
-      >
-        Export PNG
-      </button>
-      <button
-        type="button"
-        onClick={onExportPDF}
-        className="border border-zinc-300 rounded px-3 py-1 text-sm text-zinc-700 hover:bg-zinc-100"
-      >
-        Export PDF
-      </button>
-      <button
-        type="button"
-        onClick={onClear}
-        className="border border-zinc-300 rounded px-3 py-1 text-sm text-red-600 hover:bg-red-50"
-      >
-        Clear wall
-      </button>
-    </header>
+function ToggleButton({
+  active,
+  onClick,
+  title,
+  children,
+}: {
+  active: boolean;
+  onClick: () => void;
+  title?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      title={title}
+      className={`h-8 px-3 rounded-md text-[12px] leading-4 border ${
+        active
+          ? "bg-surface-brand-secondary border-surface-brand-secondary text-content-brand"
+          : "bg-surface-primary border-surface-tertiary text-content-secondary hover:text-content-primary"
+      }`}
+    >
+      {children}
+    </button>
   );
 }
 
@@ -245,13 +275,11 @@ function SaveIndicator({ status }: { status: SaveStatus }) {
           : "";
   const color =
     status === "error"
-      ? "text-red-600"
-      : status === "saving"
-        ? "text-zinc-500"
-        : "text-zinc-400";
+      ? "text-content-negative"
+      : "text-content-disabled";
   return (
     <span
-      className={`text-xs ${color} min-w-[64px]`}
+      className={`text-[10px] leading-4 ${color} min-w-[56px]`}
       aria-live="polite"
     >
       {text}

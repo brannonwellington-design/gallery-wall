@@ -144,7 +144,7 @@ const WallCanvas = forwardRef<Konva.Stage, Props>(function WallCanvas(
   return (
     <div
       ref={containerRef}
-      className="relative w-full h-full bg-zinc-100 overflow-hidden"
+      className="relative w-full h-full bg-surface-secondary overflow-hidden"
     >
       {size.w > 0 && size.h > 0 && (
         <Stage
@@ -158,15 +158,15 @@ const WallCanvas = forwardRef<Konva.Stage, Props>(function WallCanvas(
             if (e.target === e.target.getStage()) onSelect(null);
           }}
         >
-          {/* Wall surface */}
+          {/* Wall surface — kept literal white because it represents an actual wall */}
           <Layer>
             <Rect
               x={offsetX}
               y={offsetY}
               width={wallPxW}
               height={wallPxH}
-              fill="#ffffff"
-              stroke="#9ca3af"
+              fill="#FFFFFF"
+              stroke="#B6B4AF"
               strokeWidth={1}
             />
             {eyeLineY != null && (
@@ -178,10 +178,10 @@ const WallCanvas = forwardRef<Konva.Stage, Props>(function WallCanvas(
                     offsetX + wallPxW,
                     offsetY + eyeLineY * scale,
                   ]}
-                  stroke="#d97706"
+                  stroke="#E5A119"
                   strokeWidth={1}
                   dash={[6, 4]}
-                  opacity={0.55}
+                  opacity={0.6}
                   listening={false}
                 />
                 <Text
@@ -189,7 +189,8 @@ const WallCanvas = forwardRef<Konva.Stage, Props>(function WallCanvas(
                   x={offsetX + wallPxW + 6}
                   y={offsetY + eyeLineY * scale - 7}
                   fontSize={10}
-                  fill="#92400e"
+                  fontFamily="Inter, sans-serif"
+                  fill="#B88114"
                   listening={false}
                 />
               </>
@@ -244,30 +245,32 @@ const WallCanvas = forwardRef<Konva.Stage, Props>(function WallCanvas(
                 offsetX + wallPxW + 24,
                 offsetY + wallPxH,
               ]}
-              stroke="#475569"
-              strokeWidth={2}
+              stroke="#6B6861"
+              strokeWidth={1}
             />
             <Text
-              text="FLOOR"
+              text="Floor"
               x={offsetX + wallPxW + 28}
               y={offsetY + wallPxH - 6}
-              fontSize={11}
-              fill="#475569"
-              fontStyle="bold"
+              fontSize={10}
+              fontFamily="Inter, sans-serif"
+              fill="#6B6861"
             />
             <Text
               text={formatLength(room.wallWidth, room.unit, 1)}
               x={offsetX + wallPxW / 2 - 30}
-              y={offsetY - 22}
-              fontSize={12}
-              fill="#374151"
+              y={offsetY - 20}
+              fontSize={10}
+              fontFamily="Inter, sans-serif"
+              fill="#6B6861"
             />
             <Text
               text={formatLength(room.wallHeight, room.unit, 1)}
               x={offsetX - 44}
               y={offsetY + wallPxH / 2 - 6}
-              fontSize={12}
-              fill="#374151"
+              fontSize={10}
+              fontFamily="Inter, sans-serif"
+              fill="#6B6861"
             />
           </Layer>
         </Stage>
@@ -279,17 +282,18 @@ const WallCanvas = forwardRef<Konva.Stage, Props>(function WallCanvas(
 export default WallCanvas;
 
 function guideColor(reason: Guide["reason"]): string {
+  // Brand-aware semantic guide palette.
   switch (reason) {
     case "wall-edge":
     case "item-edge":
-      return "#2563eb";
+      return "#0021CC"; // surface-brand-primary
     case "wall-center":
     case "item-center":
-      return "#ec4899";
+      return "#7A85B8"; // content-brand-secondary
     case "equal-spacing":
-      return "#10b981";
+      return "#14B84B"; // surface-positive-primary
     case "eye-line":
-      return "#d97706";
+      return "#E5A119"; // surface-complimentary-primary
   }
 }
 
@@ -343,8 +347,8 @@ function Measurements({
   const centerToFloor = wall.height - centerY;
 
   const labelStyle = {
-    fontSize: 11,
-    fill: "#1f2937",
+    fontSize: 10,
+    fill: "#120F08",
     padding: 2,
   } as const;
 
@@ -357,7 +361,7 @@ function Measurements({
   const pxBottom = (rect.y + rect.height) * scale;
 
   // Tick line color
-  const tick = "#94a3b8";
+  const tick = "#B6B4AF"; // content-disabled
   const tickW = 1;
 
   return (
@@ -426,8 +430,7 @@ function Measurements({
         x={pxX + pxW / 2 + 4}
         y={pxBottom + (wall.height * scale - pxBottom) / 2 - 7}
         {...labelStyle}
-        fill="#0f172a"
-        weight="bold"
+        fill="#120F08"
       />
 
       {/* Center-to-floor — the "57in" number */}
@@ -436,7 +439,7 @@ function Measurements({
         x={pxX + pxW + 6}
         y={(centerY * scale) - 7}
         fontSize={10}
-        fill="#475569"
+        fill="#6B6861"
       />
     </Group>
   );
@@ -446,9 +449,8 @@ function Label({
   text,
   x,
   y,
-  fontSize = 11,
-  fill = "#1f2937",
-  weight,
+  fontSize = 10,
+  fill = "#120F08",
 }: {
   text: string;
   x: number;
@@ -456,7 +458,6 @@ function Label({
   fontSize?: number;
   fill?: string;
   padding?: number;
-  weight?: "bold";
 }) {
   return (
     <Text
@@ -464,8 +465,8 @@ function Label({
       x={x}
       y={y}
       fontSize={fontSize}
+      fontFamily="Inter, sans-serif"
       fill={fill}
-      fontStyle={weight === "bold" ? "bold" : undefined}
     />
   );
 }

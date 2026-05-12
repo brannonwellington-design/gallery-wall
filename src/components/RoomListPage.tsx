@@ -3,7 +3,9 @@
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useState, useTransition } from "react";
+import { Plus, Trash2 } from "lucide-react";
 import type { RoomSummary } from "@/lib/types";
+import BrandedHeader from "./BrandedHeader";
 
 type Props = {
   initialRooms: RoomSummary[];
@@ -30,7 +32,7 @@ export default function RoomListPage({ initialRooms }: Props) {
   }
 
   async function deleteRoom(id: string, name: string) {
-    if (!confirm(`Delete "${name}"? This can't be undone.`)) return;
+    if (!confirm(`Delete “${name}”? This can’t be undone.`)) return;
     try {
       const res = await fetch(`/api/rooms/${id}`, { method: "DELETE" });
       if (!res.ok) throw new Error((await res.json()).error || "Failed");
@@ -40,70 +42,123 @@ export default function RoomListPage({ initialRooms }: Props) {
     }
   }
 
-  return (
-    <div className="min-h-screen bg-zinc-50 text-zinc-900">
-      <header className="bg-white border-b border-zinc-200">
-        <div className="max-w-3xl mx-auto px-6 py-5 flex items-center justify-between">
-          <h1 className="text-xl font-semibold">Gallery Wall</h1>
-          <button
-            type="button"
-            onClick={createRoom}
-            disabled={creating}
-            className="bg-zinc-900 text-white rounded-lg px-4 py-2 text-sm font-medium hover:bg-zinc-700 transition-colors disabled:bg-zinc-400 disabled:cursor-not-allowed"
-          >
-            {creating ? "Creating…" : "+ New room"}
-          </button>
-        </div>
-      </header>
+  const count = initialRooms.length;
 
-      <main className="max-w-3xl mx-auto px-6 py-8">
+  return (
+    <div className="min-h-screen bg-surface-primary text-content-secondary">
+      <BrandedHeader title="Gallery Wall" />
+
+      <main className="max-w-[800px] mx-auto px-12 md:px-12 pt-24 pb-24">
+        {/* Title-block lockup */}
+        <header className="pb-12">
+          <div className="text-[10px] leading-4 text-content-disabled mb-2">
+            Index
+          </div>
+          <h1 className="text-[48px] leading-[52px] text-content-primary mb-3">
+            Gallery Wall
+          </h1>
+          <p className="text-[16px] leading-6 text-content-secondary mb-6 max-w-[560px]">
+            Plan gallery walls to scale. Drop in your art, set the wall
+            dimensions, and arrange pieces against an eye-level guide.
+          </p>
+          <div className="flex items-center gap-2 text-[12px] leading-4 text-content-disabled tabular">
+            <span>
+              {count} {count === 1 ? "room" : "rooms"}
+            </span>
+          </div>
+        </header>
+
+        {/* Hairline divider — brand pattern for section breaks */}
+        <div className="h-px bg-content-disabled mb-8" aria-hidden="true" />
+
         {error && (
-          <div className="mb-4 p-3 rounded border border-red-200 bg-red-50 text-sm text-red-700">
+          <div className="mb-8 p-4 border-l-2 border-surface-negative-primary bg-surface-negative-secondary text-[14px] leading-5 text-content-primary">
             {error}
           </div>
         )}
 
         {initialRooms.length === 0 ? (
-          <div className="border border-dashed border-zinc-300 rounded-lg p-12 text-center text-zinc-500">
-            <p className="text-base mb-2">No rooms yet.</p>
-            <p className="text-sm">Click &ldquo;+ New room&rdquo; to start planning a gallery wall.</p>
+          <div className="py-16">
+            <p className="text-[24px] leading-7 text-content-primary mb-3">
+              No rooms yet.
+            </p>
+            <p className="text-[16px] leading-6 text-content-secondary mb-8 max-w-[480px]">
+              Start a new room to plan its layout. You can paste a Society6 or
+              Etsy URL and it will pull in size and image for you.
+            </p>
+            <NewRoomButton onClick={createRoom} disabled={creating} creating={creating} />
           </div>
         ) : (
-          <ul className="bg-white rounded-lg border border-zinc-200 divide-y divide-zinc-200 overflow-hidden">
-            {initialRooms.map((room) => (
-              <li
-                key={room.id}
-                className="flex items-center gap-3 px-4 py-3 hover:bg-zinc-50 group"
-              >
-                <Link
-                  href={`/rooms/${room.id}`}
-                  className="flex-1 min-w-0 flex items-baseline gap-3"
+          <>
+            <ul className="border-t border-surface-tertiary">
+              {initialRooms.map((room) => (
+                <li
+                  key={room.id}
+                  className="flex items-center gap-4 py-4 border-b border-surface-tertiary"
                 >
-                  <span className="text-base font-medium text-zinc-900 truncate">
-                    {room.name || "Untitled room"}
-                  </span>
-                  <span className="text-xs text-zinc-500">
-                    {room.itemCount} {room.itemCount === 1 ? "piece" : "pieces"}
-                  </span>
-                </Link>
-                <span className="text-xs text-zinc-400 shrink-0">
-                  {formatRelative(room.updatedAt)}
-                </span>
-                <button
-                  type="button"
-                  onClick={() => deleteRoom(room.id, room.name || "Untitled room")}
-                  disabled={pending}
-                  className="text-zinc-400 hover:text-red-600 text-sm px-2 opacity-0 group-hover:opacity-100 transition-opacity"
-                  aria-label={`Delete ${room.name}`}
-                >
-                  Delete
-                </button>
-              </li>
-            ))}
-          </ul>
+                  <Link
+                    href={`/rooms/${room.id}`}
+                    className="flex-1 min-w-0 flex flex-col gap-1 rounded-sm"
+                  >
+                    <span className="text-[16px] leading-6 text-content-primary truncate">
+                      {room.name || "Untitled room"}
+                    </span>
+                    <span className="text-[12px] leading-4 text-content-disabled tabular">
+                      {room.itemCount}{" "}
+                      {room.itemCount === 1 ? "piece" : "pieces"}
+                      {" · "}
+                      {formatRelative(room.updatedAt)}
+                    </span>
+                  </Link>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      deleteRoom(room.id, room.name || "Untitled room")
+                    }
+                    disabled={pending}
+                    className="shrink-0 inline-flex items-center justify-center w-11 h-11 rounded-md text-content-disabled hover:text-content-negative hover:bg-surface-secondary disabled:opacity-50"
+                    aria-label={`Delete ${room.name || "Untitled room"}`}
+                    title="Delete room"
+                  >
+                    <Trash2 size={16} strokeWidth={1.25} aria-hidden="true" />
+                  </button>
+                </li>
+              ))}
+            </ul>
+
+            <div className="mt-8">
+              <NewRoomButton
+                onClick={createRoom}
+                disabled={creating}
+                creating={creating}
+              />
+            </div>
+          </>
         )}
       </main>
     </div>
+  );
+}
+
+function NewRoomButton({
+  onClick,
+  disabled,
+  creating,
+}: {
+  onClick: () => void;
+  disabled: boolean;
+  creating: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      className="inline-flex items-center gap-2 h-8 px-4 rounded-lg bg-surface-brand-primary text-content-brand-contrast text-[14px] leading-5 hover:opacity-90 disabled:opacity-50"
+    >
+      <Plus size={16} strokeWidth={1.25} aria-hidden="true" />
+      {creating ? "Creating…" : "New room"}
+    </button>
   );
 }
 

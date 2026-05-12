@@ -231,7 +231,7 @@ export default function AddItemForm({ unit, onAdd }: Props) {
   return (
     <div
       ref={formRef}
-      className="flex flex-col gap-3 p-4 border-t border-zinc-200"
+      className="flex flex-col gap-4 px-6 py-5 border-t border-surface-tertiary"
       onDragEnter={(e) => {
         e.preventDefault();
         if (Array.from(e.dataTransfer.types).includes("Files")) setDragOver(true);
@@ -245,12 +245,19 @@ export default function AddItemForm({ unit, onAdd }: Props) {
       }}
       onDrop={onDrop}
     >
-      <h2 className="text-sm font-semibold text-zinc-700">Add a piece</h2>
+      <div>
+        <div className="text-[10px] leading-4 text-content-disabled mb-1">
+          Add
+        </div>
+        <h2 className="text-[16px] leading-6 text-content-primary">
+          New piece
+        </h2>
+      </div>
 
       {/* URL paste */}
-      <div className="flex flex-col gap-1">
-        <label className="text-xs text-zinc-600">Paste product URL</label>
-        <div className="flex gap-1">
+      <label className="flex flex-col gap-1 text-[10px] leading-4 text-content-disabled">
+        Paste product URL
+        <div className="flex gap-2">
           <input
             type="url"
             value={urlInput}
@@ -261,45 +268,50 @@ export default function AddItemForm({ unit, onAdd }: Props) {
                 void fetchFromUrl();
               }
             }}
-            placeholder="https://..."
-            className="flex-1 border border-zinc-300 rounded px-2 py-1 text-sm min-w-0"
+            placeholder="https://…"
+            className="flex-1 min-w-0 h-8 px-2 border border-surface-tertiary rounded-md text-[14px] leading-5 text-content-primary bg-surface-primary placeholder:text-content-disabled"
           />
           <button
             type="button"
             onClick={() => void fetchFromUrl()}
             disabled={!urlInput || fetching}
-            className="bg-zinc-100 border border-zinc-300 rounded px-3 py-1 text-sm disabled:opacity-50"
+            className="h-8 px-3 border border-surface-tertiary rounded-md text-[12px] leading-4 text-content-secondary bg-surface-primary hover:text-content-primary hover:bg-surface-secondary disabled:opacity-50"
           >
             {fetching ? "Working…" : "Fetch"}
           </button>
         </div>
-      </div>
+      </label>
 
-      <div className="text-xs text-zinc-400 text-center">— or —</div>
+      <div className="text-[10px] leading-4 text-content-disabled text-center">
+        — or —
+      </div>
 
       {/* Drop zone */}
       <div
         onClick={() => fileInput.current?.click()}
-        className={`border-2 border-dashed rounded p-4 text-center text-xs cursor-pointer transition-colors ${
+        className={`border border-dashed rounded-md px-4 py-6 text-center text-[12px] leading-4 cursor-pointer ${
           dragOver
-            ? "border-blue-400 bg-blue-50 text-blue-700"
-            : "border-zinc-300 text-zinc-500 hover:border-zinc-400 hover:bg-zinc-50"
+            ? "border-content-brand bg-surface-brand-secondary text-content-brand"
+            : "border-surface-tertiary text-content-secondary hover:border-content-disabled hover:bg-surface-secondary"
         }`}
       >
         {imageDataUrl ? (
           <div className="flex flex-col items-center gap-2">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src={imageDataUrl} alt="preview" className="max-h-24" />
-            <span className="text-zinc-500">Click to replace, or drop another image</span>
+            <span className="text-content-disabled">
+              Click to replace, or drop another image
+            </span>
           </div>
         ) : (
           <>
-            <div className="font-medium text-zinc-700 mb-1">
-              Drop a screenshot, paste with ⌘V, or click to choose
+            <div className="text-content-primary mb-2">
+              Drop a screenshot, paste with ⌘&nbsp;V, or click to choose
             </div>
-            <div className="text-zinc-500">
-              Works on bot-blocked sites (West Elm, Pottery Barn, …) — screenshot the page in your
-              browser, drop it here, and Claude reads the dimensions from the image.
+            <div className="text-content-secondary">
+              Works on bot-blocked sites (West Elm, Pottery Barn, …) —
+              screenshot the page, drop it here, and Claude reads the
+              dimensions from the image.
             </div>
           </>
         )}
@@ -317,40 +329,44 @@ export default function AddItemForm({ unit, onAdd }: Props) {
 
       {/* Extraction status */}
       {fetchError && (
-        <p className="text-xs text-red-600 break-words">{fetchError}</p>
+        <p className="text-[12px] leading-4 text-content-negative break-words">
+          {fetchError}
+        </p>
       )}
       {extraction && (
-        <div className="text-xs flex flex-col gap-1">
+        <div className="flex flex-col gap-2 text-[12px] leading-4">
           <p
             className={
               extraction.confidence === "high"
-                ? "text-green-700"
+                ? "text-content-positive"
                 : extraction.confidence === "medium"
-                  ? "text-amber-700"
-                  : "text-zinc-600"
+                  ? "text-content-warning"
+                  : "text-content-secondary"
             }
           >
             {extraction.confidence === "high"
               ? "Extracted with high confidence — review and add."
               : extraction.confidence === "medium"
                 ? "Extracted — please double-check the dimensions."
-                : "Couldn't confidently extract dimensions — enter them manually."}
+                : "Couldn’t confidently extract dimensions — enter them manually."}
           </p>
           {extraction.warnings.map((w, i) => (
-            <p key={i} className="text-zinc-600">
+            <p key={i} className="text-content-secondary">
               • {w}
             </p>
           ))}
           {extraction.variants.length > 0 && (
             <div className="mt-1">
-              <p className="text-zinc-600">Sizes available — pick one:</p>
-              <div className="flex flex-wrap gap-1 mt-1">
+              <p className="text-content-secondary mb-1">
+                Sizes available — pick one:
+              </p>
+              <div className="flex flex-wrap gap-1">
                 {extraction.variants.map((v, i) => (
                   <button
                     key={i}
                     type="button"
                     onClick={() => applyVariant(v)}
-                    className="border border-zinc-300 rounded px-2 py-1 text-xs hover:bg-zinc-50"
+                    className="h-8 px-3 border border-surface-tertiary rounded-md text-[12px] leading-4 text-content-secondary hover:text-content-primary hover:bg-surface-secondary tabular"
                   >
                     {v.widthInches}″ × {v.heightInches}″
                     {v.label ? ` — ${v.label}` : ""}
@@ -362,19 +378,19 @@ export default function AddItemForm({ unit, onAdd }: Props) {
         </div>
       )}
 
-      <label className="flex flex-col gap-1 text-xs text-zinc-600">
+      <label className="flex flex-col gap-1 text-[10px] leading-4 text-content-disabled">
         Name
         <input
           type="text"
           value={name}
           onChange={(e) => setName(e.target.value)}
           placeholder="e.g. Sunset print"
-          className="border border-zinc-300 rounded px-2 py-1 text-sm"
+          className="h-8 px-2 border border-surface-tertiary rounded-md text-[14px] leading-5 text-content-primary bg-surface-primary placeholder:text-content-disabled"
         />
       </label>
 
       <div className="grid grid-cols-2 gap-2">
-        <label className="flex flex-col gap-1 text-xs text-zinc-600">
+        <label className="flex flex-col gap-1 text-[10px] leading-4 text-content-disabled">
           Art width ({unitLabel})
           <input
             type="number"
@@ -382,10 +398,10 @@ export default function AddItemForm({ unit, onAdd }: Props) {
             min="0"
             value={width}
             onChange={(e) => syncHeightFromWidth(e.target.value)}
-            className="border border-zinc-300 rounded px-2 py-1 text-sm"
+            className="h-8 px-2 border border-surface-tertiary rounded-md text-[14px] leading-5 text-content-primary bg-surface-primary tabular"
           />
         </label>
-        <label className="flex flex-col gap-1 text-xs text-zinc-600">
+        <label className="flex flex-col gap-1 text-[10px] leading-4 text-content-disabled">
           Art height ({unitLabel})
           <input
             type="number"
@@ -393,23 +409,24 @@ export default function AddItemForm({ unit, onAdd }: Props) {
             min="0"
             value={height}
             onChange={(e) => setHeight(e.target.value)}
-            className="border border-zinc-300 rounded px-2 py-1 text-sm"
+            className="h-8 px-2 border border-surface-tertiary rounded-md text-[14px] leading-5 text-content-primary bg-surface-primary tabular"
           />
         </label>
       </div>
 
-      <label className="flex items-center gap-2 text-xs text-zinc-700 select-none">
+      <label className="flex items-center gap-2 text-[12px] leading-4 text-content-primary select-none cursor-pointer">
         <input
           type="checkbox"
           checked={framed}
           onChange={(e) => setFramed(e.target.checked)}
+          className="w-4 h-4 accent-[color:var(--content-brand)]"
         />
         Add a frame
       </label>
 
       {framed && (
         <div className="grid grid-cols-3 gap-2">
-          <label className="flex flex-col gap-1 text-xs text-zinc-600">
+          <label className="flex flex-col gap-1 text-[10px] leading-4 text-content-disabled">
             Mat ({unitLabel})
             <input
               type="number"
@@ -417,10 +434,10 @@ export default function AddItemForm({ unit, onAdd }: Props) {
               min="0"
               value={matIn}
               onChange={(e) => setMatIn(e.target.value)}
-              className="border border-zinc-300 rounded px-2 py-1 text-sm"
+              className="h-8 px-2 border border-surface-tertiary rounded-md text-[14px] leading-5 text-content-primary bg-surface-primary tabular"
             />
           </label>
-          <label className="flex flex-col gap-1 text-xs text-zinc-600">
+          <label className="flex flex-col gap-1 text-[10px] leading-4 text-content-disabled">
             Frame ({unitLabel})
             <input
               type="number"
@@ -428,16 +445,16 @@ export default function AddItemForm({ unit, onAdd }: Props) {
               min="0"
               value={frameIn}
               onChange={(e) => setFrameIn(e.target.value)}
-              className="border border-zinc-300 rounded px-2 py-1 text-sm"
+              className="h-8 px-2 border border-surface-tertiary rounded-md text-[14px] leading-5 text-content-primary bg-surface-primary tabular"
             />
           </label>
-          <label className="flex flex-col gap-1 text-xs text-zinc-600">
+          <label className="flex flex-col gap-1 text-[10px] leading-4 text-content-disabled">
             Color
             <input
               type="color"
               value={frameColor}
               onChange={(e) => setFrameColor(e.target.value)}
-              className="border border-zinc-300 rounded h-[30px] w-full"
+              className="h-8 w-full border border-surface-tertiary rounded-md bg-surface-primary"
             />
           </label>
         </div>
@@ -447,7 +464,7 @@ export default function AddItemForm({ unit, onAdd }: Props) {
         type="button"
         onClick={submit}
         disabled={!imageDataUrl}
-        className="bg-zinc-900 text-white rounded px-3 py-1.5 text-sm font-medium disabled:bg-zinc-300 disabled:cursor-not-allowed hover:bg-zinc-700 transition-colors"
+        className="inline-flex items-center justify-center h-8 px-4 rounded-lg bg-surface-brand-primary text-content-brand-contrast text-[14px] leading-5 hover:opacity-90 disabled:opacity-50"
       >
         Add to wall
       </button>

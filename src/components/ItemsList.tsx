@@ -1,5 +1,6 @@
 "use client";
 
+import { Loader2, Scissors, Trash2, Undo2 } from "lucide-react";
 import type { Item, Unit } from "@/lib/types";
 import { formatLength } from "@/lib/units";
 
@@ -24,7 +25,7 @@ export default function ItemsList({
 }: Props) {
   if (items.length === 0) {
     return (
-      <div className="px-4 py-3 text-xs text-zinc-500">
+      <div className="px-6 py-4 text-[12px] leading-4 text-content-disabled">
         No pieces yet. Add one below.
       </div>
     );
@@ -38,8 +39,10 @@ export default function ItemsList({
         return (
           <li
             key={it.id}
-            className={`flex items-center gap-2 px-4 py-2 cursor-pointer text-sm group ${
-              active ? "bg-blue-50" : "hover:bg-zinc-50"
+            className={`flex items-center gap-3 px-6 py-3 cursor-pointer ${
+              active
+                ? "bg-surface-brand-secondary"
+                : "hover:bg-surface-secondary"
             }`}
             onClick={() => onSelect(it.id)}
           >
@@ -47,21 +50,24 @@ export default function ItemsList({
             <img
               src={it.imageDataUrl}
               alt=""
-              className="w-8 h-8 object-cover rounded border border-zinc-200 bg-white"
+              className="w-10 h-10 object-cover rounded-sm border border-surface-tertiary bg-surface-highlight"
               style={
                 bgRemoved
                   ? {
                       backgroundImage:
-                        "repeating-conic-gradient(#e5e7eb 0% 25%, #ffffff 0% 50%)",
+                        "repeating-conic-gradient(var(--surface-tertiary) 0% 25%, var(--surface-highlight) 0% 50%)",
                       backgroundSize: "8px 8px",
                     }
                   : undefined
               }
             />
             <div className="flex-1 min-w-0">
-              <div className="truncate text-zinc-800">{it.name}</div>
-              <div className="text-[11px] text-zinc-500">
-                {formatLength(it.artWidth, unit)} × {formatLength(it.artHeight, unit)}
+              <div className="truncate text-[14px] leading-5 text-content-primary">
+                {it.name}
+              </div>
+              <div className="text-[10px] leading-4 text-content-disabled tabular">
+                {formatLength(it.artWidth, unit)} ×{" "}
+                {formatLength(it.artHeight, unit)}
               </div>
             </div>
             <button
@@ -71,18 +77,34 @@ export default function ItemsList({
                 onToggleBackground(it.id);
               }}
               disabled={bgBusy}
-              className={`text-[11px] px-1.5 py-0.5 rounded border transition-opacity ${
+              className={`inline-flex items-center justify-center w-8 h-8 rounded-md ${
                 bgRemoved
-                  ? "border-blue-300 bg-blue-50 text-blue-700 opacity-100"
-                  : "border-zinc-300 text-zinc-600 opacity-0 group-hover:opacity-100"
-              } disabled:opacity-100 disabled:cursor-wait`}
+                  ? "text-content-brand bg-surface-brand-secondary hover:opacity-80"
+                  : "text-content-secondary hover:text-content-primary hover:bg-surface-tertiary"
+              } disabled:opacity-60 disabled:cursor-wait`}
               title={
-                bgRemoved
-                  ? "Restore original background"
-                  : "Remove background (uses Replicate)"
+                bgBusy
+                  ? "Removing background…"
+                  : bgRemoved
+                    ? "Restore original background"
+                    : "Remove background (uses Replicate)"
+              }
+              aria-label={
+                bgRemoved ? "Restore background" : "Remove background"
               }
             >
-              {bgBusy ? "…" : bgRemoved ? "+BG" : "−BG"}
+              {bgBusy ? (
+                <Loader2
+                  size={14}
+                  strokeWidth={1.25}
+                  className="animate-spin"
+                  aria-hidden="true"
+                />
+              ) : bgRemoved ? (
+                <Undo2 size={14} strokeWidth={1.25} aria-hidden="true" />
+              ) : (
+                <Scissors size={14} strokeWidth={1.25} aria-hidden="true" />
+              )}
             </button>
             <button
               type="button"
@@ -90,10 +112,11 @@ export default function ItemsList({
                 e.stopPropagation();
                 onRemove(it.id);
               }}
-              className="text-zinc-400 hover:text-red-600 text-xs px-1 opacity-0 group-hover:opacity-100 transition-opacity"
+              className="inline-flex items-center justify-center w-8 h-8 rounded-md text-content-disabled hover:text-content-negative hover:bg-surface-negative-secondary"
               aria-label={`Remove ${it.name}`}
+              title="Remove piece"
             >
-              ×
+              <Trash2 size={14} strokeWidth={1.25} aria-hidden="true" />
             </button>
           </li>
         );

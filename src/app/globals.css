@@ -1,9 +1,129 @@
 @import "tailwindcss";
 
-html, body, #__next {
-  height: 100%;
+/*
+ * Listen Labs brand tokens — Paper theme.
+ * Source: github.com/brannonwellington-design/listen-labs-brand-plugin
+ * Token names are identical across light/dark; only values change.
+ */
+:root {
+  /* Paper – Light */
+  --content-primary: #120F08;
+  --content-secondary: #6B6861;
+  --content-inverse-primary: #F9F4EB;
+  --content-inverse-secondary: #9E9B94;
+  --content-disabled: #B6B4AF;
+  --content-inverse-disabled: #504E49;
+  --content-brand: #0021CC;
+  --content-brand-secondary: #7A85B8;
+  --content-brand-contrast: #F9F4EB;
+  --content-complimentary: #B88114;
+  --content-warning: #B85814;
+  --content-negative: #B82214;
+  --content-positive: #0F8A38;
+
+  --surface-highlight: #FBF9F4;
+  --surface-primary: #F9F4EB;
+  --surface-secondary: #EEE8DD;
+  --surface-tertiary: #E2DCCF;
+  --surface-inverse-primary: #120F08;
+  --surface-inverse-secondary: #1F1B14;
+  --surface-brand-primary: #0021CC;
+  --surface-brand-secondary: #D9DDF2;
+  --surface-complimentary-primary: #E5A119;
+  --surface-complimentary-secondary: #F5EBD6;
+  --surface-warning-primary: #CF6317;
+  --surface-warning-secondary: #F5E3D6;
+  --surface-negative-primary: #CF2617;
+  --surface-negative-secondary: #F5D9D6;
+  --surface-positive-primary: #14B84B;
+  --surface-positive-secondary: #D6F5E0;
 }
 
+@media (prefers-color-scheme: dark) {
+  :root {
+    /* Paper – Dark (only tokens that differ from light) */
+    --content-primary: #F9F4EB;
+    --content-secondary: #9E9B94;
+    --content-inverse-primary: #120F08;
+    --content-inverse-secondary: #6B6861;
+    --content-disabled: #504E49;
+    --content-inverse-disabled: #B6B4AF;
+    --content-brand: #3354FF;
+
+    --surface-highlight: #080603;
+    --surface-primary: #130F06;
+    --surface-secondary: #201C13;
+    --surface-tertiary: #30291D;
+    --surface-inverse-primary: #F9F4EB;
+    --surface-inverse-secondary: #F0E9DB;
+    --surface-brand-secondary: #131939;
+  }
+}
+
+/*
+ * Map brand tokens to Tailwind v4 utilities so `bg-surface-primary`,
+ * `text-content-secondary` etc. are first-class. Token name → utility name.
+ */
+@theme inline {
+  --color-content-primary: var(--content-primary);
+  --color-content-secondary: var(--content-secondary);
+  --color-content-disabled: var(--content-disabled);
+  --color-content-inverse-primary: var(--content-inverse-primary);
+  --color-content-inverse-secondary: var(--content-inverse-secondary);
+  --color-content-brand: var(--content-brand);
+  --color-content-brand-secondary: var(--content-brand-secondary);
+  --color-content-positive: var(--content-positive);
+  --color-content-negative: var(--content-negative);
+  --color-content-warning: var(--content-warning);
+
+  --color-surface-primary: var(--surface-primary);
+  --color-surface-highlight: var(--surface-highlight);
+  --color-surface-secondary: var(--surface-secondary);
+  --color-surface-tertiary: var(--surface-tertiary);
+  --color-surface-inverse-primary: var(--surface-inverse-primary);
+  --color-surface-brand-primary: var(--surface-brand-primary);
+  --color-surface-brand-secondary: var(--surface-brand-secondary);
+  --color-surface-complimentary-primary: var(--surface-complimentary-primary);
+  --color-surface-complimentary-secondary: var(--surface-complimentary-secondary);
+  --color-surface-positive-primary: var(--surface-positive-primary);
+  --color-surface-positive-secondary: var(--surface-positive-secondary);
+  --color-surface-negative-primary: var(--surface-negative-primary);
+  --color-surface-negative-secondary: var(--surface-negative-secondary);
+
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+}
+
+/* Base */
+html { color-scheme: light dark; }
+html, body, #__next { height: 100%; }
+
 body {
-  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  font-family: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  font-weight: 400;
+  background: var(--surface-primary);
+  color: var(--content-secondary);
+  /* Brand rule: default browser letter-spacing only — never override. */
+}
+
+/* Brand typography helpers */
+h1, h2, h3, h4, h5, h6, .text-balance { text-wrap: balance; }
+p, .text-pretty { text-wrap: pretty; }
+
+/* Tabular numerals for numeric columns / measurements */
+.tabular { font-variant-numeric: tabular-nums; }
+
+/* Keyboard-only focus ring — brand spec */
+:focus { outline: none; }
+:focus-visible {
+  outline: 2px solid var(--content-primary);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+/* Honor reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    transition-duration: 0.001ms !important;
+  }
 }

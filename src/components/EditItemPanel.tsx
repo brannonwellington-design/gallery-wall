@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { ArrowLeftRight, X } from "lucide-react";
 import type { Frame, Item, Unit } from "@/lib/types";
 import { fromMm, toMm } from "@/lib/units";
 import { downscaleImage } from "@/lib/image";
@@ -18,9 +19,7 @@ export default function EditItemPanel({ item, unit, onUpdate, onClose }: Props) 
   const unitLabel = unit === "in" ? '"' : "cm";
 
   const [name, setName] = useState(item.name);
-  const [width, setWidth] = useState(() =>
-    fromMm(item.artWidth, unit).toFixed(1),
-  );
+  const [width, setWidth] = useState(() => fromMm(item.artWidth, unit).toFixed(1));
   const [height, setHeight] = useState(() =>
     fromMm(item.artHeight, unit).toFixed(1),
   );
@@ -32,7 +31,6 @@ export default function EditItemPanel({ item, unit, onUpdate, onClose }: Props) 
   );
   const fileInput = useRef<HTMLInputElement>(null);
 
-  // Sync local inputs when the selected item, its values, or the unit changes.
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setName(item.name);
@@ -42,14 +40,7 @@ export default function EditItemPanel({ item, unit, onUpdate, onClose }: Props) 
       setMatInput(fromMm(item.frame.matWidth, unit).toFixed(2));
       setFrameInput(fromMm(item.frame.frameWidth, unit).toFixed(2));
     }
-  }, [
-    item.id,
-    item.name,
-    item.artWidth,
-    item.artHeight,
-    item.frame,
-    unit,
-  ]);
+  }, [item.id, item.name, item.artWidth, item.artHeight, item.frame, unit]);
 
   function commitName() {
     const trimmed = name.trim();
@@ -118,8 +109,6 @@ export default function EditItemPanel({ item, unit, onUpdate, onClose }: Props) 
     if (!file.type.startsWith("image/")) return;
     const raw = await readAsDataUrl(file);
     const downsized = await downscaleImage(raw);
-    // New image invalidates the background-removed snapshot and any
-    // pre-crop dimensions stashed alongside it.
     onUpdate(item.id, {
       imageDataUrl: downsized,
       imageOriginalDataUrl: null,
@@ -129,15 +118,24 @@ export default function EditItemPanel({ item, unit, onUpdate, onClose }: Props) 
   }
 
   return (
-    <div className="flex flex-col gap-3 p-4 border-t border-zinc-200 bg-blue-50/40">
+    <div className="flex flex-col gap-4 px-6 py-5 border-t border-surface-tertiary bg-surface-highlight">
       <div className="flex items-center justify-between">
-        <h2 className="text-sm font-semibold text-zinc-700">Edit piece</h2>
+        <div>
+          <div className="text-[10px] leading-4 text-content-disabled mb-0.5">
+            Editing
+          </div>
+          <div className="text-[14px] leading-5 text-content-primary truncate max-w-[200px]">
+            {item.name}
+          </div>
+        </div>
         <button
           type="button"
           onClick={onClose}
-          className="text-xs text-zinc-500 hover:text-zinc-900 px-2 py-0.5 rounded hover:bg-white"
+          className="inline-flex items-center justify-center w-8 h-8 rounded-md text-content-secondary hover:text-content-primary hover:bg-surface-secondary"
+          aria-label="Close edit panel"
+          title="Done editing"
         >
-          Done
+          <X size={14} strokeWidth={1.25} aria-hidden="true" />
         </button>
       </div>
 
@@ -146,12 +144,12 @@ export default function EditItemPanel({ item, unit, onUpdate, onClose }: Props) 
         <img
           src={item.imageDataUrl}
           alt=""
-          className="w-16 h-16 object-cover rounded border border-zinc-200 bg-white"
+          className="w-16 h-16 object-cover rounded-sm border border-surface-tertiary bg-surface-primary"
         />
         <button
           type="button"
           onClick={() => fileInput.current?.click()}
-          className="text-xs text-zinc-700 underline hover:text-zinc-900"
+          className="text-[12px] leading-4 text-content-brand underline-offset-2 hover:underline"
         >
           Replace image
         </button>
@@ -167,8 +165,7 @@ export default function EditItemPanel({ item, unit, onUpdate, onClose }: Props) 
         />
       </div>
 
-      <label className="flex flex-col gap-1 text-xs text-zinc-600">
-        Name
+      <Field label="Name">
         <input
           type="text"
           value={name}
@@ -177,104 +174,121 @@ export default function EditItemPanel({ item, unit, onUpdate, onClose }: Props) 
           onKeyDown={(e) => {
             if (e.key === "Enter") (e.target as HTMLInputElement).blur();
           }}
-          className="border border-zinc-300 rounded px-2 py-1 text-sm"
+          className="h-8 px-2 border border-surface-tertiary rounded-md text-[14px] leading-5 text-content-primary bg-surface-primary"
         />
-      </label>
+      </Field>
 
       <div className="grid grid-cols-[1fr_auto_1fr] items-end gap-2">
-        <label className="flex flex-col gap-1 text-xs text-zinc-600">
-          Width ({unitLabel})
-          <input
-            type="number"
-            step="0.1"
-            min="0"
+        <Field label={`Width (${unitLabel})`}>
+          <NumberInput
             value={width}
-            onChange={(e) => setWidth(e.target.value)}
-            onBlur={commitDims}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") (e.target as HTMLInputElement).blur();
-            }}
-            className="border border-zinc-300 rounded px-2 py-1 text-sm"
+            onChange={setWidth}
+            onCommit={commitDims}
+            ariaLabel="Width"
           />
-        </label>
+        </Field>
         <button
           type="button"
           onClick={swapDims}
           title="Swap width and height"
-          className="border border-zinc-300 rounded text-xs px-2 py-1 hover:bg-white"
+          aria-label="Swap width and height"
+          className="inline-flex items-center justify-center h-8 w-8 mb-0 border border-surface-tertiary rounded-md text-content-secondary hover:text-content-primary hover:bg-surface-secondary"
         >
-          ⇄
+          <ArrowLeftRight size={14} strokeWidth={1.25} aria-hidden="true" />
         </button>
-        <label className="flex flex-col gap-1 text-xs text-zinc-600">
-          Height ({unitLabel})
-          <input
-            type="number"
-            step="0.1"
-            min="0"
+        <Field label={`Height (${unitLabel})`}>
+          <NumberInput
             value={height}
-            onChange={(e) => setHeight(e.target.value)}
-            onBlur={commitDims}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") (e.target as HTMLInputElement).blur();
-            }}
-            className="border border-zinc-300 rounded px-2 py-1 text-sm"
+            onChange={setHeight}
+            onCommit={commitDims}
+            ariaLabel="Height"
           />
-        </label>
+        </Field>
       </div>
 
-      <label className="flex items-center gap-2 text-xs text-zinc-700 select-none">
+      <label className="flex items-center gap-2 text-[12px] leading-4 text-content-primary select-none cursor-pointer">
         <input
           type="checkbox"
           checked={!!item.frame}
           onChange={toggleFrame}
+          className="w-4 h-4 accent-[color:var(--content-brand)]"
         />
         Add a frame
       </label>
 
       {item.frame && (
         <div className="grid grid-cols-3 gap-2">
-          <label className="flex flex-col gap-1 text-xs text-zinc-600">
-            Mat ({unitLabel})
-            <input
-              type="number"
-              step="0.1"
-              min="0"
+          <Field label={`Mat (${unitLabel})`}>
+            <NumberInput
               value={matInput}
-              onChange={(e) => setMatInput(e.target.value)}
-              onBlur={commitFrameDims}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") (e.target as HTMLInputElement).blur();
-              }}
-              className="border border-zinc-300 rounded px-2 py-1 text-sm"
+              onChange={setMatInput}
+              onCommit={commitFrameDims}
+              ariaLabel="Mat width"
             />
-          </label>
-          <label className="flex flex-col gap-1 text-xs text-zinc-600">
-            Frame ({unitLabel})
-            <input
-              type="number"
-              step="0.1"
-              min="0"
+          </Field>
+          <Field label={`Frame (${unitLabel})`}>
+            <NumberInput
               value={frameInput}
-              onChange={(e) => setFrameInput(e.target.value)}
-              onBlur={commitFrameDims}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") (e.target as HTMLInputElement).blur();
-              }}
-              className="border border-zinc-300 rounded px-2 py-1 text-sm"
+              onChange={setFrameInput}
+              onCommit={commitFrameDims}
+              ariaLabel="Frame width"
             />
-          </label>
-          <label className="flex flex-col gap-1 text-xs text-zinc-600">
-            Color
+          </Field>
+          <Field label="Color">
             <input
               type="color"
               value={item.frame.frameColor}
               onChange={(e) => setFrameColor(e.target.value)}
-              className="border border-zinc-300 rounded h-[30px] w-full"
+              aria-label="Frame color"
+              className="h-8 w-full border border-surface-tertiary rounded-md bg-surface-primary"
             />
-          </label>
+          </Field>
         </div>
       )}
     </div>
+  );
+}
+
+function Field({
+  label,
+  children,
+}: {
+  label: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <label className="flex flex-col gap-1 text-[10px] leading-4 text-content-disabled">
+      {label}
+      {children}
+    </label>
+  );
+}
+
+function NumberInput({
+  value,
+  onChange,
+  onCommit,
+  ariaLabel,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  onCommit: () => void;
+  ariaLabel: string;
+}) {
+  return (
+    <input
+      type="number"
+      step="0.1"
+      min="0"
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      onBlur={onCommit}
+      onKeyDown={(e) => {
+        if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+      }}
+      aria-label={ariaLabel}
+      className="h-8 px-2 border border-surface-tertiary rounded-md text-[14px] leading-5 text-content-primary bg-surface-primary tabular"
+    />
   );
 }
 

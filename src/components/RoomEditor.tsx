@@ -203,7 +203,7 @@ export default function RoomEditor({ roomId, initialRoom }: Props) {
         }));
       } catch (e) {
         alert(
-          `Couldn't remove background: ${e instanceof Error ? e.message : "Unknown error"}`,
+          `Couldn’t remove background: ${e instanceof Error ? e.message : "Unknown error"}`,
         );
       } finally {
         setBgBusyId(null);
@@ -272,7 +272,7 @@ export default function RoomEditor({ roomId, initialRoom }: Props) {
   }
 
   return (
-    <div className="flex flex-col h-screen w-full bg-zinc-50 text-zinc-900">
+    <div className="flex flex-col h-screen w-full bg-surface-primary text-content-secondary">
       <Toolbar
         roomName={room.name}
         unit={room.unit}
@@ -298,9 +298,14 @@ export default function RoomEditor({ roomId, initialRoom }: Props) {
       />
 
       <div className="flex flex-1 min-h-0">
-        <aside className="w-80 border-r border-zinc-200 bg-white flex flex-col overflow-y-auto">
-          <div className="px-4 py-3 border-b border-zinc-200">
-            <h2 className="text-sm font-semibold text-zinc-700">Pieces</h2>
+        <aside className="w-80 border-r border-surface-tertiary bg-surface-highlight flex flex-col overflow-y-auto">
+          <div className="px-6 py-5 border-b border-surface-tertiary">
+            <div className="text-[10px] leading-4 text-content-disabled mb-1">
+              Catalog
+            </div>
+            <h2 className="text-[16px] leading-6 text-content-primary">
+              Pieces
+            </h2>
           </div>
           <ItemsList
             items={room.items}

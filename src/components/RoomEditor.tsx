@@ -5,6 +5,7 @@ import dynamic from "next/dynamic";
 import type Konva from "konva";
 import type { Frame, Item, Room, Unit } from "@/lib/types";
 import { makeDefaultRoom } from "@/lib/defaults";
+import { cropToOpaqueBounds } from "@/lib/image";
 import { toMm } from "@/lib/units";
 import AddItemForm from "./AddItemForm";
 import EditItemPanel from "./EditItemPanel";
@@ -127,7 +128,8 @@ export default function RoomEditor({ roomId, initialRoom }: Props) {
       const item = room.items.find((i) => i.id === id);
       if (!item) return;
 
-      // If the original is stashed, restore it without a network call.
+      // If the original is stashed, restore it (and the pre-crop dims, if
+      // we shrank them) without a network call.
       if (item.imageOriginalDataUrl) {
         setRoom((r) => ({
           ...r,
@@ -137,6 +139,10 @@ export default function RoomEditor({ roomId, initialRoom }: Props) {
                   ...it,
                   imageDataUrl: it.imageOriginalDataUrl!,
                   imageOriginalDataUrl: null,
+                  artWidth: it.artWidthOriginal ?? it.artWidth,
+                  artHeight: it.artHeightOriginal ?? it.artHeight,
+                  artWidthOriginal: null,
+                  artHeightOriginal: null,
                 }
               : it,
           ),
@@ -158,17 +164,42 @@ export default function RoomEditor({ roomId, initialRoom }: Props) {
         if (!res.ok || !data.imageDataUrl) {
           throw new Error(data.error || `Failed (${res.status})`);
         }
+        // Auto-crop transparent padding so frame/matte hug the actual art,
+        // and shrink physical dims by the same ratio to preserve on-wall
+        // size. If the result is already tight, crop returns null and we
+        // keep dims unchanged.
+        let finalImage = data.imageDataUrl;
+        let widthRatio = 1;
+        let heightRatio = 1;
+        try {
+          const cropped = await cropToOpaqueBounds(data.imageDataUrl);
+          if (cropped) {
+            finalImage = cropped.dataUrl;
+            widthRatio = cropped.widthRatio;
+            heightRatio = cropped.heightRatio;
+          }
+        } catch {
+          // Crop failures shouldn't block the bg-removal result.
+        }
         setRoom((r) => ({
           ...r,
-          items: r.items.map((it) =>
-            it.id === id
-              ? {
-                  ...it,
-                  imageOriginalDataUrl: it.imageDataUrl,
-                  imageDataUrl: data.imageDataUrl!,
-                }
-              : it,
-          ),
+          items: r.items.map((it) => {
+            if (it.id !== id) return it;
+            const cropped = widthRatio < 1 || heightRatio < 1;
+            return {
+              ...it,
+              imageOriginalDataUrl: it.imageDataUrl,
+              imageDataUrl: finalImage,
+              ...(cropped
+                ? {
+                    artWidthOriginal: it.artWidth,
+                    artHeightOriginal: it.artHeight,
+                    artWidth: it.artWidth * widthRatio,
+                    artHeight: it.artHeight * heightRatio,
+                  }
+                : {}),
+            };
+          }),
         }));
       } catch (e) {
         alert(

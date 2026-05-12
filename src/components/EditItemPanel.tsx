@@ -118,10 +118,13 @@ export default function EditItemPanel({ item, unit, onUpdate, onClose }: Props) 
     if (!file.type.startsWith("image/")) return;
     const raw = await readAsDataUrl(file);
     const downsized = await downscaleImage(raw);
-    // New image invalidates the background-removed snapshot.
+    // New image invalidates the background-removed snapshot and any
+    // pre-crop dimensions stashed alongside it.
     onUpdate(item.id, {
       imageDataUrl: downsized,
       imageOriginalDataUrl: null,
+      artWidthOriginal: null,
+      artHeightOriginal: null,
     });
   }
 

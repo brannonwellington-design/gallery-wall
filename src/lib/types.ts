@@ -15,6 +15,12 @@ export type Item = {
   imageOriginalDataUrl?: string | null;
   artWidth: number;
   artHeight: number;
+  // Background removal auto-crops the image to the visible art, then
+  // shrinks artWidth/artHeight by the same ratio so frame/matte hug it.
+  // These stash the pre-crop physical dims so toggling background back on
+  // restores the original box. Null when no crop was applied.
+  artWidthOriginal?: number | null;
+  artHeightOriginal?: number | null;
   frame: Frame | null;
   x: number;
   y: number;

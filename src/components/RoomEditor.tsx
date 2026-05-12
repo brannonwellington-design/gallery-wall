@@ -7,6 +7,7 @@ import type { Frame, Item, Room, Unit } from "@/lib/types";
 import { makeDefaultRoom } from "@/lib/defaults";
 import { toMm } from "@/lib/units";
 import AddItemForm from "./AddItemForm";
+import EditItemPanel from "./EditItemPanel";
 import ItemsList from "./ItemsList";
 import Toolbar, { type SaveStatus } from "./Toolbar";
 
@@ -110,6 +111,13 @@ export default function RoomEditor({ roomId, initialRoom }: Props) {
   const removeItem = useCallback((id: string) => {
     setRoom((r) => ({ ...r, items: r.items.filter((it) => it.id !== id) }));
     setSelectedId((prev) => (prev === id ? null : prev));
+  }, []);
+
+  const updateItem = useCallback((id: string, patch: Partial<Item>) => {
+    setRoom((r) => ({
+      ...r,
+      items: r.items.map((it) => (it.id === id ? { ...it, ...patch } : it)),
+    }));
   }, []);
 
   const [bgBusyId, setBgBusyId] = useState<string | null>(null);
@@ -264,6 +272,19 @@ export default function RoomEditor({ roomId, initialRoom }: Props) {
             onRemove={removeItem}
             onToggleBackground={toggleBackground}
           />
+          {selectedId &&
+            (() => {
+              const selectedItem = room.items.find((i) => i.id === selectedId);
+              return selectedItem ? (
+                <EditItemPanel
+                  key={selectedItem.id}
+                  item={selectedItem}
+                  unit={room.unit}
+                  onUpdate={updateItem}
+                  onClose={() => setSelectedId(null)}
+                />
+              ) : null;
+            })()}
           <AddItemForm unit={room.unit} onAdd={addItem} />
         </aside>
 

@@ -89,7 +89,8 @@ export default function Toolbar({
     <>
       <BrandedHeader title={roomName || "Untitled Room"} variant="inline" />
 
-      <header className="flex items-center gap-3 px-6 py-3 border-b border-surface-tertiary bg-surface-primary">
+      {/* pr-16 reserves room for the fixed-position ThemeToggle in the top-right corner. */}
+      <header className="flex items-center gap-3 px-6 pr-16 py-3 border-b border-surface-tertiary bg-surface-primary">
         <Link
           href="/"
           className="inline-flex items-center gap-1 h-8 px-2 -ml-2 rounded-md text-[12px] leading-4 text-content-secondary hover:text-content-primary hover:bg-surface-secondary"

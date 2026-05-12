@@ -65,7 +65,10 @@ export default function ThemeToggle() {
           : "Toggle color mode"
       }
       aria-pressed={mounted ? isDark : undefined}
-      className="fixed top-4 right-4 z-40 inline-flex items-center justify-center w-11 h-11 rounded-md text-content-secondary bg-surface-primary border border-surface-tertiary hover:text-content-primary hover:bg-surface-secondary"
+      // top-4 + h-8 → icon vertical center at y=32, matching the
+      // BrandedHeader text center (top-6 + line-height-4 / 2 = 32).
+      // No container chrome — brand minimalism.
+      className="fixed top-4 right-4 z-40 inline-flex items-center justify-center w-8 h-8 text-content-secondary hover:text-content-primary"
     >
       {/* Both icons rendered; the inactive one is hidden. Prevents layout
           shift and keeps the SSR markup stable regardless of theme. */}

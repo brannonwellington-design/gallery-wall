@@ -112,7 +112,7 @@ export default function ItemsList({
                 e.stopPropagation();
                 onRemove(it.id);
               }}
-              className="inline-flex items-center justify-center w-8 h-8 rounded-md text-content-disabled hover:text-content-negative hover:bg-surface-negative-secondary"
+              className="inline-flex items-center justify-center w-8 h-8 rounded-md text-content-secondary hover:text-content-negative hover:bg-surface-negative-secondary"
               aria-label={`Remove ${it.name}`}
               title="Remove piece"
             >

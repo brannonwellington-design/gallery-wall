@@ -89,11 +89,12 @@ export default function Toolbar({
     <>
       <BrandedHeader title={roomName || "Untitled Room"} variant="inline" />
 
-      {/* pr-16 reserves room for the fixed-position ThemeToggle in the top-right corner. */}
-      <header className="flex items-center gap-3 px-6 pr-16 py-3 border-b border-surface-tertiary bg-surface-primary">
+      {/* Toolbar groups separated by whitespace, not hairlines. ThemeToggle
+          lives above this row (y=16-48); toolbar starts at y=56 — no overlap. */}
+      <header className="flex items-center gap-3 px-6 py-3 border-b border-surface-tertiary bg-surface-primary">
         <Link
           href="/"
-          className="inline-flex items-center gap-1 h-8 px-2 -ml-2 rounded-md text-[12px] leading-4 text-content-secondary hover:text-content-primary hover:bg-surface-secondary"
+          className="inline-flex items-center gap-1 h-8 px-2 -ml-2 rounded-md text-[12px] leading-4 text-content-primary hover:bg-surface-secondary"
           title="Back to rooms"
         >
           <ArrowLeft size={14} strokeWidth={1.25} aria-hidden="true" />
@@ -114,7 +115,7 @@ export default function Toolbar({
 
         <SaveIndicator status={saveStatus} />
 
-        <div className="flex items-center gap-2 ml-2 pl-3 border-l border-surface-tertiary">
+        <div className="flex items-center gap-2 ml-4">
           <span className="text-[10px] leading-4 text-content-disabled">Wall</span>
           <NumInput value={wInput} onChange={setWInput} onCommit={commitWall} ariaLabel="Wall width" />
           <span className="text-[12px] leading-4 text-content-disabled">×</span>
@@ -131,7 +132,7 @@ export default function Toolbar({
           Snap
         </ToggleButton>
 
-        <div className="flex items-center gap-2 ml-1 pl-3 border-l border-surface-tertiary">
+        <div className="flex items-center gap-2 ml-2">
           <ToggleButton
             active={eyeLineEnabled}
             onClick={() => onChangeEyeLineEnabled(!eyeLineEnabled)}
@@ -153,7 +154,7 @@ export default function Toolbar({
         <button
           type="button"
           onClick={onExportPNG}
-          className="inline-flex items-center gap-1 h-8 px-3 rounded-md text-[12px] leading-4 text-content-secondary hover:text-content-primary hover:bg-surface-secondary"
+          className="inline-flex items-center gap-1 h-8 px-3 rounded-md text-[12px] leading-4 text-content-primary hover:bg-surface-secondary"
         >
           <Download size={14} strokeWidth={1.25} aria-hidden="true" />
           PNG
@@ -161,7 +162,7 @@ export default function Toolbar({
         <button
           type="button"
           onClick={onExportPDF}
-          className="inline-flex items-center gap-1 h-8 px-3 rounded-md text-[12px] leading-4 text-content-secondary hover:text-content-primary hover:bg-surface-secondary"
+          className="inline-flex items-center gap-1 h-8 px-3 rounded-md text-[12px] leading-4 text-content-primary hover:bg-surface-secondary"
         >
           <FileDown size={14} strokeWidth={1.25} aria-hidden="true" />
           PDF
@@ -169,7 +170,7 @@ export default function Toolbar({
         <button
           type="button"
           onClick={onClear}
-          className="inline-flex items-center gap-1 h-8 px-3 rounded-md text-[12px] leading-4 text-content-secondary hover:text-content-negative hover:bg-surface-negative-secondary"
+          className="inline-flex items-center gap-1 h-8 px-3 rounded-md text-[12px] leading-4 text-content-primary hover:text-content-negative hover:bg-surface-negative-secondary"
           title="Clear wall"
         >
           <Trash2 size={14} strokeWidth={1.25} aria-hidden="true" />
@@ -228,7 +229,7 @@ function UnitToggle({
           className={`h-full px-2 text-[12px] leading-4 ${
             unit === u
               ? "bg-surface-inverse-primary text-content-inverse-primary"
-              : "bg-surface-primary text-content-secondary hover:text-content-primary"
+              : "bg-surface-primary text-content-primary hover:bg-surface-secondary"
           }`}
         >
           {u}

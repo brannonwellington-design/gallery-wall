@@ -116,7 +116,7 @@ export default function RoomListPage({ initialRooms }: Props) {
                       deleteRoom(room.id, room.name || "Untitled room")
                     }
                     disabled={pending}
-                    className="shrink-0 inline-flex items-center justify-center w-11 h-11 rounded-md text-content-disabled hover:text-content-negative hover:bg-surface-secondary disabled:opacity-50"
+                    className="shrink-0 inline-flex items-center justify-center w-11 h-11 rounded-md text-content-secondary hover:text-content-negative hover:bg-surface-secondary disabled:opacity-50"
                     aria-label={`Delete ${room.name || "Untitled room"}`}
                     title="Delete room"
                   >

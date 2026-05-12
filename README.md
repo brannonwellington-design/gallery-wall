@@ -32,6 +32,18 @@ The add-item form has a "Paste product URL" field. When you click Fetch, the ser
 
 When this is unset, the rest of the app works fine — only URL ingestion is disabled. Extraction uses `claude-opus-4-7` with adaptive thinking; you can drop to a cheaper model by editing `src/lib/extract.ts` if cost becomes an issue.
 
+### Sites that block URL ingestion
+
+Some retailers run bot-protection (Akamai, Cloudflare Bot Manager, PerimeterX) that returns 403 to any plain HTTP request, especially from cloud IPs like Vercel's. **West Elm, Pottery Barn, and some Etsy listings** fall in this bucket. The UI surfaces a clear "this site blocks automated requests" message when it happens.
+
+Workarounds, in order of effort:
+
+- Enter the piece manually — the form is fully editable.
+- Try a different listing of the same product on a friendlier source.
+- Plug in a paid scraping service (ScrapingBee, Bright Data, Browserless) as a fallback in `src/lib/extract.ts`. Costs ~$0.001–0.01 per request. Ask and I'll wire one up.
+
+Society6, Minted, Redbubble, and Shopify-hosted indie shops generally just work.
+
 ## Stack
 
 - Next.js 16 (App Router) + TypeScript + Tailwind

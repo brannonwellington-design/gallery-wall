@@ -54,7 +54,26 @@ export async function extractFromUrl(rawUrl: string): Promise<ExtractResult> {
 // ---- Implementation ----
 
 const USER_AGENT =
-  "Mozilla/5.0 (compatible; gallery-wall/1.0; +https://github.com/brannonwellington-design/gallery-wall)";
+  "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";
+
+const BROWSER_HEADERS: Record<string, string> = {
+  "User-Agent": USER_AGENT,
+  Accept:
+    "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
+  "Accept-Language": "en-US,en;q=0.9",
+  "Accept-Encoding": "gzip, deflate, br",
+  "Cache-Control": "no-cache",
+  Pragma: "no-cache",
+  "sec-ch-ua":
+    '"Google Chrome";v="131", "Chromium";v="131", "Not_A Brand";v="24"',
+  "sec-ch-ua-mobile": "?0",
+  "sec-ch-ua-platform": '"macOS"',
+  "sec-fetch-dest": "document",
+  "sec-fetch-mode": "navigate",
+  "sec-fetch-site": "none",
+  "sec-fetch-user": "?1",
+  "Upgrade-Insecure-Requests": "1",
+};
 
 const SYSTEM_PROMPT = `You are an extraction agent for a gallery-wall design tool.
 Given the condensed content of a product listing page, extract the
@@ -96,16 +115,27 @@ Fields:
   Only include warnings that genuinely need attention; don't pad.`;
 
 async function fetchPage(url: string): Promise<string> {
-  const res = await fetch(url, {
-    headers: {
-      "User-Agent": USER_AGENT,
-      Accept:
-        "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-      "Accept-Language": "en-US,en;q=0.5",
-    },
-    redirect: "follow",
-    signal: AbortSignal.timeout(15000),
-  });
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      headers: BROWSER_HEADERS,
+      redirect: "follow",
+      signal: AbortSignal.timeout(15000),
+    });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "Unknown error";
+    throw new Error(`Couldn't reach the page (${msg}).`);
+  }
+  if (res.status === 403 || res.status === 401 || res.status === 429) {
+    throw new Error(
+      `This site is blocking automated requests (HTTP ${res.status}). Some retailers (Akamai- or Cloudflare-protected sites like West Elm or some Etsy listings) require a paid scraping service. Try a different listing, or enter this one manually.`,
+    );
+  }
+  if (res.status === 503 || res.status === 520 || res.status === 521 || res.status === 522) {
+    throw new Error(
+      `The site's bot protection returned ${res.status}. Try again, or enter the piece manually.`,
+    );
+  }
   if (!res.ok) {
     throw new Error(`Failed to fetch page: ${res.status} ${res.statusText}`);
   }
@@ -239,7 +269,7 @@ async function callClaude(condensed: string): Promise<ExtractedProduct> {
 
 async function downloadImage(url: string): Promise<string | null> {
   const res = await fetch(url, {
-    headers: { "User-Agent": USER_AGENT },
+    headers: { "User-Agent": USER_AGENT, Accept: "image/*,*/*;q=0.8" },
     redirect: "follow",
     signal: AbortSignal.timeout(15000),
   });

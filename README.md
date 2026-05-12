@@ -44,7 +44,7 @@ The image area in the add-form supports:
 
 Society6, Minted, Redbubble, and Shopify-hosted indie shops generally just work with the URL paste.
 
-If you ever want the URL path to work on Akamai-protected sites, plug in a paid scraping service (ScrapingBee, Bright Data, Browserless) as a fallback in `src/lib/extract.ts`. Costs ~$0.001–0.01 per request.
+If you want the URL path to work on Akamai-protected sites, add a `SCRAPINGBEE_API_KEY` to `.env.local` (and to your Vercel project env). The extractor automatically falls back to ScrapingBee when a direct fetch hits 401/403/429/503/520+. Each premium-proxy fetch uses 10 ScrapingBee credits (~$0.005 at paid tier; the 1000-credit free trial covers about 100 retailer fetches).
 
 ## Stack
 

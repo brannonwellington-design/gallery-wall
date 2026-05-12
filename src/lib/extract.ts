@@ -174,7 +174,33 @@ Fields:
   - "Width/height assignment based on aspect ratio"
   Only include warnings that need attention; don't pad.`;
 
+type DirectFetchResult =
+  | { ok: true; html: string }
+  | { ok: false; blocked: boolean; status: number | null; error: string };
+
 async function fetchPage(url: string): Promise<string> {
+  const direct = await directFetch(url);
+  if (direct.ok) return direct.html;
+
+  // If the direct fetch was blocked AND we have a ScrapingBee key, retry
+  // through them. They route through residential proxies and handle TLS
+  // fingerprinting, which gets us past Akamai / Cloudflare.
+  if (direct.blocked && process.env.SCRAPINGBEE_API_KEY) {
+    console.log(
+      `[extract] Direct fetch returned ${direct.status}; retrying via ScrapingBee for ${url}`,
+    );
+    return await scrapingBeeFetch(url, process.env.SCRAPINGBEE_API_KEY);
+  }
+
+  if (direct.blocked) {
+    throw new Error(
+      `This site is blocking automated requests (HTTP ${direct.status}). Screenshot the page in your browser and drop the screenshot into the form instead, or set SCRAPINGBEE_API_KEY to enable a fallback.`,
+    );
+  }
+  throw new Error(direct.error);
+}
+
+async function directFetch(url: string): Promise<DirectFetchResult> {
   let res: Response;
   try {
     res = await fetch(url, {
@@ -183,25 +209,79 @@ async function fetchPage(url: string): Promise<string> {
       signal: AbortSignal.timeout(15000),
     });
   } catch (e) {
-    const msg = e instanceof Error ? e.message : "Unknown error";
-    throw new Error(`Couldn't reach the page (${msg}).`);
+    return {
+      ok: false,
+      blocked: false,
+      status: null,
+      error: `Couldn't reach the page (${e instanceof Error ? e.message : "Unknown error"}).`,
+    };
   }
-  if (res.status === 403 || res.status === 401 || res.status === 429) {
-    throw new Error(
-      `This site is blocking automated requests (HTTP ${res.status}). Some retailers (Akamai- or Cloudflare-protected sites like West Elm or some Etsy listings) require a paid scraping service. Try a different listing, or enter this one manually.`,
-    );
-  }
-  if (res.status === 503 || res.status === 520 || res.status === 521 || res.status === 522) {
-    throw new Error(
-      `The site's bot protection returned ${res.status}. Try again, or enter the piece manually.`,
-    );
+  const blockedCodes = new Set([401, 403, 429, 503, 520, 521, 522]);
+  if (blockedCodes.has(res.status)) {
+    return {
+      ok: false,
+      blocked: true,
+      status: res.status,
+      error: `Site blocked (HTTP ${res.status})`,
+    };
   }
   if (!res.ok) {
-    throw new Error(`Failed to fetch page: ${res.status} ${res.statusText}`);
+    return {
+      ok: false,
+      blocked: false,
+      status: res.status,
+      error: `Failed to fetch page: ${res.status} ${res.statusText}`,
+    };
   }
   const contentType = res.headers.get("content-type") ?? "";
   if (!/text\/html|application\/xhtml/i.test(contentType)) {
-    throw new Error(`Unexpected content-type: ${contentType}`);
+    return {
+      ok: false,
+      blocked: false,
+      status: res.status,
+      error: `Unexpected content-type: ${contentType}`,
+    };
+  }
+  return { ok: true, html: await res.text() };
+}
+
+async function scrapingBeeFetch(url: string, apiKey: string): Promise<string> {
+  const apiUrl = new URL("https://app.scrapingbee.com/api/v1/");
+  apiUrl.searchParams.set("api_key", apiKey);
+  apiUrl.searchParams.set("url", url);
+  // Product pages we care about (West Elm, PB, CB2, Etsy) render their
+  // structured data into the HTML on the server. JS rendering costs ~5x
+  // more credits and isn't usually needed.
+  apiUrl.searchParams.set("render_js", "false");
+  // Premium proxy routes through residential IPs — necessary to clear
+  // Akamai Bot Manager. Costs 10 credits per request vs 1.
+  apiUrl.searchParams.set("premium_proxy", "true");
+
+  let res: Response;
+  try {
+    res = await fetch(apiUrl.toString(), {
+      signal: AbortSignal.timeout(45000),
+    });
+  } catch (e) {
+    throw new Error(
+      `ScrapingBee request failed: ${e instanceof Error ? e.message : "Unknown error"}`,
+    );
+  }
+  if (res.status === 401) {
+    throw new Error(
+      "ScrapingBee says the API key is invalid. Double-check SCRAPINGBEE_API_KEY.",
+    );
+  }
+  if (res.status === 402) {
+    throw new Error(
+      "ScrapingBee account is out of credits. Top up at scrapingbee.com, or screenshot the page and drop it into the form.",
+    );
+  }
+  if (!res.ok) {
+    const errText = await res.text().catch(() => "");
+    throw new Error(
+      `ScrapingBee returned ${res.status}: ${errText.slice(0, 200) || res.statusText}`,
+    );
   }
   return await res.text();
 }

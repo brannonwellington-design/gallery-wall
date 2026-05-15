@@ -8,6 +8,7 @@ import { DEFAULT_EYE_LINE_HEIGHT_MM, makeDefaultRoom } from "@/lib/defaults";
 import { cropToOpaqueBounds } from "@/lib/image";
 import { randomizeLayout } from "@/lib/layout";
 import { toMm } from "@/lib/units";
+import { useHistory } from "@/lib/useHistory";
 import AddItemForm from "./AddItemForm";
 import EditItemPanel from "./EditItemPanel";
 import ItemsList from "./ItemsList";
@@ -32,7 +33,14 @@ type Props = {
 };
 
 export default function RoomEditor({ roomId, initialRoom }: Props) {
-  const [room, setRoom] = useState<Room>(initialRoom);
+  const {
+    state: room,
+    setState: setRoom,
+    undo,
+    redo,
+    canUndo,
+    canRedo,
+  } = useHistory<Room>(initialRoom);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [snapEnabled, setSnapEnabled] = useState(true);
   const [saveStatus, setSaveStatus] = useState<SaveStatus>("idle");
@@ -108,19 +116,19 @@ export default function RoomEditor({ roomId, initialRoom }: Props) {
       ...r,
       items: r.items.map((it) => (it.id === id ? { ...it, x, y } : it)),
     }));
-  }, []);
+  }, [setRoom]);
 
   const removeItem = useCallback((id: string) => {
     setRoom((r) => ({ ...r, items: r.items.filter((it) => it.id !== id) }));
     setSelectedId((prev) => (prev === id ? null : prev));
-  }, []);
+  }, [setRoom]);
 
   const updateItem = useCallback((id: string, patch: Partial<Item>) => {
     setRoom((r) => ({
       ...r,
       items: r.items.map((it) => (it.id === id ? { ...it, ...patch } : it)),
     }));
-  }, []);
+  }, [setRoom]);
 
   const togglePin = useCallback((id: string) => {
     setRoom((r) => ({
@@ -129,7 +137,7 @@ export default function RoomEditor({ roomId, initialRoom }: Props) {
         it.id === id ? { ...it, pinned: !it.pinned } : it,
       ),
     }));
-  }, []);
+  }, [setRoom]);
 
   const randomize = useCallback(() => {
     setRoom((r) => {
@@ -147,7 +155,7 @@ export default function RoomEditor({ roomId, initialRoom }: Props) {
       }, eyeLineY);
       return { ...r, items };
     });
-  }, []);
+  }, [setRoom]);
 
   const [bgBusyId, setBgBusyId] = useState<string | null>(null);
 
@@ -237,8 +245,32 @@ export default function RoomEditor({ roomId, initialRoom }: Props) {
         setBgBusyId(null);
       }
     },
-    [room.items],
+    [room.items, setRoom],
   );
+
+  // Global Undo / Redo shortcuts (Cmd/Ctrl+Z, Cmd/Ctrl+Shift+Z).
+  // Works any time the user isn't typing into an input.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const t = e.target as HTMLElement | null;
+      const tag = t?.tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA" || t?.isContentEditable) return;
+      const meta = e.metaKey || e.ctrlKey;
+      if (!meta) return;
+      const key = e.key.toLowerCase();
+      if (key === "z") {
+        e.preventDefault();
+        if (e.shiftKey) redo();
+        else undo();
+      } else if (key === "y") {
+        // Windows convention
+        e.preventDefault();
+        redo();
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [undo, redo]);
 
   // Keyboard shortcuts when an item is selected.
   useEffect(() => {
@@ -268,7 +300,7 @@ export default function RoomEditor({ roomId, initialRoom }: Props) {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [selectedId, removeItem, room.unit]);
+  }, [selectedId, removeItem, room.unit, setRoom]);
 
   function clearWall() {
     if (!confirm("Remove all pieces from this wall?")) return;
@@ -321,6 +353,10 @@ export default function RoomEditor({ roomId, initialRoom }: Props) {
           setRoom((r) => ({ ...r, eyeLineHeight: heightMm }))
         }
         onRandomize={randomize}
+        canUndo={canUndo}
+        canRedo={canRedo}
+        onUndo={undo}
+        onRedo={redo}
         onExportPNG={exportPNG}
         onExportPDF={exportPDF}
         onClear={clearWall}

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { ArrowLeft, Download, FileDown, Shuffle, Trash2 } from "lucide-react";
+import { ArrowLeft, Download, FileDown, Redo2, Shuffle, Trash2, Undo2 } from "lucide-react";
 import type { Unit } from "@/lib/types";
 import { fromMm, toMm } from "@/lib/units";
 import BrandedHeader from "./BrandedHeader";
@@ -25,6 +25,10 @@ type Props = {
   onChangeEyeLineEnabled: (enabled: boolean) => void;
   onChangeEyeLineHeight: (heightMm: number) => void;
   onRandomize: () => void;
+  canUndo: boolean;
+  canRedo: boolean;
+  onUndo: () => void;
+  onRedo: () => void;
   onExportPNG: () => void;
   onExportPDF: () => void;
   onClear: () => void;
@@ -46,6 +50,10 @@ export default function Toolbar({
   onChangeEyeLineEnabled,
   onChangeEyeLineHeight,
   onRandomize,
+  canUndo,
+  canRedo,
+  onUndo,
+  onRedo,
   onExportPNG,
   onExportPDF,
   onClear,
@@ -159,6 +167,27 @@ export default function Toolbar({
         >
           <Shuffle size={14} strokeWidth={1.25} aria-hidden="true" />
           Randomize
+        </button>
+
+        <button
+          type="button"
+          onClick={onUndo}
+          disabled={!canUndo}
+          aria-label="Undo"
+          title="Undo (⌘Z)"
+          className="inline-flex items-center justify-center w-8 h-8 rounded-md text-content-primary hover:bg-surface-secondary disabled:text-content-disabled disabled:hover:bg-transparent disabled:cursor-not-allowed"
+        >
+          <Undo2 size={14} strokeWidth={1.25} aria-hidden="true" />
+        </button>
+        <button
+          type="button"
+          onClick={onRedo}
+          disabled={!canRedo}
+          aria-label="Redo"
+          title="Redo (⇧⌘Z)"
+          className="inline-flex items-center justify-center w-8 h-8 rounded-md text-content-primary hover:bg-surface-secondary disabled:text-content-disabled disabled:hover:bg-transparent disabled:cursor-not-allowed"
+        >
+          <Redo2 size={14} strokeWidth={1.25} aria-hidden="true" />
         </button>
 
         <div className="flex-1" />

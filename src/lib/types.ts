@@ -24,6 +24,9 @@ export type Item = {
   frame: Frame | null;
   x: number;
   y: number;
+  // When true, the Randomize action leaves this piece's position alone
+  // and the layout engine treats it as a fixed obstacle.
+  pinned?: boolean;
 };
 
 export type Room = {

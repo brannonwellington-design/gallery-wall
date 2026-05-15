@@ -6,6 +6,7 @@ import type Konva from "konva";
 import type { Frame, Item, Room, Unit } from "@/lib/types";
 import { DEFAULT_EYE_LINE_HEIGHT_MM, makeDefaultRoom } from "@/lib/defaults";
 import { cropToOpaqueBounds } from "@/lib/image";
+import { randomizeLayout } from "@/lib/layout";
 import { toMm } from "@/lib/units";
 import AddItemForm from "./AddItemForm";
 import EditItemPanel from "./EditItemPanel";
@@ -119,6 +120,33 @@ export default function RoomEditor({ roomId, initialRoom }: Props) {
       ...r,
       items: r.items.map((it) => (it.id === id ? { ...it, ...patch } : it)),
     }));
+  }, []);
+
+  const togglePin = useCallback((id: string) => {
+    setRoom((r) => ({
+      ...r,
+      items: r.items.map((it) =>
+        it.id === id ? { ...it, pinned: !it.pinned } : it,
+      ),
+    }));
+  }, []);
+
+  const randomize = useCallback(() => {
+    setRoom((r) => {
+      const eyeLineEnabled = r.eyeLineEnabled ?? true;
+      const eyeLineHeight = r.eyeLineHeight ?? DEFAULT_EYE_LINE_HEIGHT_MM;
+      // Eye line is stored as distance from floor; layout engine wants
+      // y from the top of the wall.
+      const eyeLineY =
+        eyeLineEnabled && eyeLineHeight > 0 && eyeLineHeight < r.wallHeight
+          ? r.wallHeight - eyeLineHeight
+          : null;
+      const { items } = randomizeLayout(r.items, {
+        width: r.wallWidth,
+        height: r.wallHeight,
+      }, eyeLineY);
+      return { ...r, items };
+    });
   }, []);
 
   const [bgBusyId, setBgBusyId] = useState<string | null>(null);
@@ -292,6 +320,7 @@ export default function RoomEditor({ roomId, initialRoom }: Props) {
         onChangeEyeLineHeight={(heightMm) =>
           setRoom((r) => ({ ...r, eyeLineHeight: heightMm }))
         }
+        onRandomize={randomize}
         onExportPNG={exportPNG}
         onExportPDF={exportPDF}
         onClear={clearWall}
@@ -315,6 +344,7 @@ export default function RoomEditor({ roomId, initialRoom }: Props) {
             onSelect={setSelectedId}
             onRemove={removeItem}
             onToggleBackground={toggleBackground}
+            onTogglePin={togglePin}
           />
           {selectedId &&
             (() => {
@@ -325,6 +355,7 @@ export default function RoomEditor({ roomId, initialRoom }: Props) {
                   item={selectedItem}
                   unit={room.unit}
                   onUpdate={updateItem}
+                  onTogglePin={() => togglePin(selectedItem.id)}
                   onClose={() => setSelectedId(null)}
                 />
               ) : null;

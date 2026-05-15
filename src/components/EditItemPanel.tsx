@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { ArrowLeftRight, X } from "lucide-react";
+import { ArrowLeftRight, Pin, PinOff, X } from "lucide-react";
 import type { Frame, Item, Unit } from "@/lib/types";
 import { fromMm, toMm } from "@/lib/units";
 import { downscaleImage } from "@/lib/image";
@@ -10,12 +10,19 @@ type Props = {
   item: Item;
   unit: Unit;
   onUpdate: (id: string, patch: Partial<Item>) => void;
+  onTogglePin: () => void;
   onClose: () => void;
 };
 
 const DEFAULT_FRAME_COLOR = "#1f1f1f";
 
-export default function EditItemPanel({ item, unit, onUpdate, onClose }: Props) {
+export default function EditItemPanel({
+  item,
+  unit,
+  onUpdate,
+  onTogglePin,
+  onClose,
+}: Props) {
   const unitLabel = unit === "in" ? '"' : "cm";
 
   const [name, setName] = useState(item.name);
@@ -164,6 +171,29 @@ export default function EditItemPanel({ item, unit, onUpdate, onClose }: Props) 
           className="hidden"
         />
       </div>
+
+      <button
+        type="button"
+        onClick={onTogglePin}
+        aria-pressed={!!item.pinned}
+        className={`inline-flex items-center gap-2 h-8 px-3 self-start rounded-md text-[12px] leading-4 ${
+          item.pinned
+            ? "bg-surface-brand-secondary text-content-brand"
+            : "border border-surface-tertiary text-content-primary hover:bg-surface-secondary"
+        }`}
+        title={
+          item.pinned
+            ? "Unpin — Randomize will move this piece"
+            : "Pin — keep this piece in place when randomizing"
+        }
+      >
+        {item.pinned ? (
+          <PinOff size={14} strokeWidth={1.25} aria-hidden="true" />
+        ) : (
+          <Pin size={14} strokeWidth={1.25} aria-hidden="true" />
+        )}
+        {item.pinned ? "Pinned" : "Pin position"}
+      </button>
 
       <Field label="Name">
         <input

@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useState, useTransition } from "react";
-import { Plus, Trash2 } from "lucide-react";
+import { Copy, Plus, Trash2 } from "lucide-react";
 import type { RoomSummary } from "@/lib/types";
 import BrandedHeader from "./BrandedHeader";
 
@@ -39,6 +39,21 @@ export default function RoomListPage({ initialRooms }: Props) {
       startTransition(() => router.refresh());
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to delete");
+    }
+  }
+
+  async function duplicateRoom(id: string) {
+    setError(null);
+    try {
+      const res = await fetch("/api/rooms", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sourceId: id }),
+      });
+      if (!res.ok) throw new Error((await res.json()).error || "Failed");
+      startTransition(() => router.refresh());
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to duplicate");
     }
   }
 
@@ -110,6 +125,16 @@ export default function RoomListPage({ initialRooms }: Props) {
                       {formatRelative(room.updatedAt)}
                     </span>
                   </Link>
+                  <button
+                    type="button"
+                    onClick={() => duplicateRoom(room.id)}
+                    disabled={pending}
+                    className="shrink-0 inline-flex items-center justify-center w-11 h-11 rounded-md text-content-secondary hover:text-content-primary hover:bg-surface-secondary disabled:opacity-50"
+                    aria-label={`Duplicate ${room.name || "Untitled room"}`}
+                    title="Duplicate room"
+                  >
+                    <Copy size={16} strokeWidth={1.25} aria-hidden="true" />
+                  </button>
                   <button
                     type="button"
                     onClick={() =>

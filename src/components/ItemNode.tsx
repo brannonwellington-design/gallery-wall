@@ -1,6 +1,6 @@
 "use client";
 
-import { Group, Image as KImage, Rect, Text } from "react-konva";
+import { Circle, Group, Image as KImage, Line, Rect, Text } from "react-konva";
 import useImage from "use-image";
 import type Konva from "konva";
 import type { Item } from "@/lib/types";
@@ -114,6 +114,16 @@ export default function ItemNode({
           fontFamily="Inter, sans-serif"
           fill="#0021CC"
         />
+      )}
+      {item.pinned && (
+        // Map-pin badge in the top-right corner of the piece. Brand-blue
+        // head + pointed base + cream dot. Excluded from listening so it
+        // doesn't intercept drags on the piece below.
+        <Group x={totalW * scale - 12} y={6} listening={false}>
+          <Circle radius={6} fill="#0021CC" />
+          <Line points={[0, 4, -4, 10, 4, 10]} closed fill="#0021CC" />
+          <Circle radius={1.5} fill="#FBF9F4" />
+        </Group>
       )}
     </Group>
   );

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { ArrowLeft, Download, FileDown, Trash2 } from "lucide-react";
+import { ArrowLeft, Download, FileDown, Shuffle, Trash2 } from "lucide-react";
 import type { Unit } from "@/lib/types";
 import { fromMm, toMm } from "@/lib/units";
 import BrandedHeader from "./BrandedHeader";
@@ -24,6 +24,7 @@ type Props = {
   onChangeSnap: (enabled: boolean) => void;
   onChangeEyeLineEnabled: (enabled: boolean) => void;
   onChangeEyeLineHeight: (heightMm: number) => void;
+  onRandomize: () => void;
   onExportPNG: () => void;
   onExportPDF: () => void;
   onClear: () => void;
@@ -44,6 +45,7 @@ export default function Toolbar({
   onChangeSnap,
   onChangeEyeLineEnabled,
   onChangeEyeLineHeight,
+  onRandomize,
   onExportPNG,
   onExportPDF,
   onClear,
@@ -148,6 +150,16 @@ export default function Toolbar({
             ariaLabel="Eye line height from floor"
           />
         </div>
+
+        <button
+          type="button"
+          onClick={onRandomize}
+          className="inline-flex items-center gap-1 h-8 px-3 ml-2 rounded-md text-[12px] leading-4 text-content-primary hover:bg-surface-secondary"
+          title="Randomize layout — re-arrange unpinned pieces using a classic gallery pattern"
+        >
+          <Shuffle size={14} strokeWidth={1.25} aria-hidden="true" />
+          Randomize
+        </button>
 
         <div className="flex-1" />
 

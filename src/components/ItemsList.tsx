@@ -1,6 +1,6 @@
 "use client";
 
-import { Loader2, Scissors, Trash2, Undo2 } from "lucide-react";
+import { Loader2, Pin, PinOff, Scissors, Trash2, Undo2 } from "lucide-react";
 import type { Item, Unit } from "@/lib/types";
 import { formatLength } from "@/lib/units";
 
@@ -12,6 +12,7 @@ type Props = {
   onSelect: (id: string | null) => void;
   onRemove: (id: string) => void;
   onToggleBackground: (id: string) => void;
+  onTogglePin: (id: string) => void;
 };
 
 export default function ItemsList({
@@ -22,6 +23,7 @@ export default function ItemsList({
   onSelect,
   onRemove,
   onToggleBackground,
+  onTogglePin,
 }: Props) {
   if (items.length === 0) {
     return (
@@ -104,6 +106,31 @@ export default function ItemsList({
                 <Undo2 size={14} strokeWidth={1.25} aria-hidden="true" />
               ) : (
                 <Scissors size={14} strokeWidth={1.25} aria-hidden="true" />
+              )}
+            </button>
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onTogglePin(it.id);
+              }}
+              className={`inline-flex items-center justify-center w-8 h-8 rounded-md ${
+                it.pinned
+                  ? "text-content-brand bg-surface-brand-secondary hover:opacity-80"
+                  : "text-content-secondary hover:text-content-primary hover:bg-surface-tertiary"
+              }`}
+              aria-label={it.pinned ? "Unpin piece" : "Pin piece"}
+              aria-pressed={!!it.pinned}
+              title={
+                it.pinned
+                  ? "Unpin — let Randomize move this piece"
+                  : "Pin — keep this piece in place when randomizing"
+              }
+            >
+              {it.pinned ? (
+                <PinOff size={14} strokeWidth={1.25} aria-hidden="true" />
+              ) : (
+                <Pin size={14} strokeWidth={1.25} aria-hidden="true" />
               )}
             </button>
             <button

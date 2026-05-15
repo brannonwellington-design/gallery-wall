@@ -79,6 +79,8 @@ html[data-theme="dark"] {
   --color-content-inverse-secondary: var(--content-inverse-secondary);
   --color-content-brand: var(--content-brand);
   --color-content-brand-secondary: var(--content-brand-secondary);
+  --color-content-brand-contrast: var(--content-brand-contrast);
+  --color-content-complimentary: var(--content-complimentary);
   --color-content-positive: var(--content-positive);
   --color-content-negative: var(--content-negative);
   --color-content-warning: var(--content-warning);

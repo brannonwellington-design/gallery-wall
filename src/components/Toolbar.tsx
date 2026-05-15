@@ -25,6 +25,7 @@ type Props = {
   onChangeEyeLineEnabled: (enabled: boolean) => void;
   onChangeEyeLineHeight: (heightMm: number) => void;
   onRandomize: () => void;
+  layoutStatus: string | null;
   canUndo: boolean;
   canRedo: boolean;
   onUndo: () => void;
@@ -50,6 +51,7 @@ export default function Toolbar({
   onChangeEyeLineEnabled,
   onChangeEyeLineHeight,
   onRandomize,
+  layoutStatus,
   canUndo,
   canRedo,
   onUndo,
@@ -168,6 +170,14 @@ export default function Toolbar({
           <Shuffle size={14} strokeWidth={1.25} aria-hidden="true" />
           Randomize
         </button>
+        {layoutStatus && (
+          <span
+            className="text-[10px] leading-4 text-content-secondary"
+            aria-live="polite"
+          >
+            {layoutStatus}
+          </span>
+        )}
 
         <button
           type="button"

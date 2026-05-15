@@ -139,6 +139,14 @@ export default function RoomEditor({ roomId, initialRoom }: Props) {
     }));
   }, [setRoom]);
 
+  const [layoutStatus, setLayoutStatus] = useState<string | null>(null);
+  const layoutStatusTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  function flashLayoutStatus(msg: string) {
+    setLayoutStatus(msg);
+    if (layoutStatusTimer.current) clearTimeout(layoutStatusTimer.current);
+    layoutStatusTimer.current = setTimeout(() => setLayoutStatus(null), 2500);
+  }
+
   const randomize = useCallback(() => {
     setRoom((r) => {
       const eyeLineEnabled = r.eyeLineEnabled ?? true;
@@ -149,11 +157,17 @@ export default function RoomEditor({ roomId, initialRoom }: Props) {
         eyeLineEnabled && eyeLineHeight > 0 && eyeLineHeight < r.wallHeight
           ? r.wallHeight - eyeLineHeight
           : null;
-      const { items } = randomizeLayout(r.items, {
-        width: r.wallWidth,
-        height: r.wallHeight,
-      }, eyeLineY);
-      return { ...r, items };
+      const result = randomizeLayout(
+        r.items,
+        { width: r.wallWidth, height: r.wallHeight },
+        eyeLineY,
+      );
+      if (!result.template) {
+        flashLayoutStatus("Couldn’t fit — try fewer pieces or a bigger wall");
+        return r;
+      }
+      flashLayoutStatus(`${capitalize(result.template)} layout`);
+      return { ...r, items: result.items };
     });
   }, [setRoom]);
 
@@ -353,6 +367,7 @@ export default function RoomEditor({ roomId, initialRoom }: Props) {
           setRoom((r) => ({ ...r, eyeLineHeight: heightMm }))
         }
         onRandomize={randomize}
+        layoutStatus={layoutStatus}
         canUndo={canUndo}
         canRedo={canRedo}
         onUndo={undo}
@@ -412,6 +427,10 @@ export default function RoomEditor({ roomId, initialRoom }: Props) {
       </div>
     </div>
   );
+}
+
+function capitalize(s: string): string {
+  return s.length > 0 ? s[0].toUpperCase() + s.slice(1) : s;
 }
 
 function slug(s: string): string {

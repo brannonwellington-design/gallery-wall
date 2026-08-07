@@ -43,6 +43,36 @@ const WallCanvas = forwardRef<Konva.Stage, Props>(function WallCanvas(
   } | null>(null);
   const [guides, setGuides] = useState<Guide[]>([]);
   const altPressed = useRef(false);
+  const guidesRaf = useRef<number | null>(null);
+  const pendingDrag = useRef<{
+    id: string;
+    x: number;
+    y: number;
+    guides: Guide[];
+  } | null>(null);
+
+  const flushDragVisuals = useCallback(() => {
+    guidesRaf.current = null;
+    const pending = pendingDrag.current;
+    if (!pending) return;
+    setGuides(pending.guides);
+    setDragging({ id: pending.id, x: pending.x, y: pending.y });
+  }, []);
+
+  const scheduleDragVisuals = useCallback(
+    (id: string, x: number, y: number, nextGuides: Guide[]) => {
+      pendingDrag.current = { id, x, y, guides: nextGuides };
+      if (guidesRaf.current != null) return;
+      guidesRaf.current = requestAnimationFrame(flushDragVisuals);
+    },
+    [flushDragVisuals],
+  );
+
+  useEffect(() => {
+    return () => {
+      if (guidesRaf.current != null) cancelAnimationFrame(guidesRaf.current);
+    };
+  }, []);
 
   // Track Alt key — held = disable snap.
   useEffect(() => {
@@ -114,15 +144,15 @@ const WallCanvas = forwardRef<Konva.Stage, Props>(function WallCanvas(
         enabled: snapEnabled && !altPressed.current,
         eyeLineY: eyeLineY ?? undefined,
       });
-      // Update guide state for rendering (batched by React).
-      setGuides(result.guides);
-      setDragging({ id: item.id, x: result.x, y: result.y });
+      // Update guide state for rendering — rAF-throttled so every
+      // pointer sample doesn't force a React re-render.
+      scheduleDragVisuals(item.id, result.x, result.y, result.guides);
       return {
         x: offsetX + result.x * scale,
         y: offsetY + result.y * scale,
       };
     },
-    [offsetX, offsetY, scale, room.items, room.wallWidth, room.wallHeight, snapEnabled, eyeLineY],
+    [offsetX, offsetY, scale, room.items, room.wallWidth, room.wallHeight, snapEnabled, eyeLineY, scheduleDragVisuals],
   );
 
   // Decide which rect to show measurements for.
@@ -214,6 +244,11 @@ const WallCanvas = forwardRef<Konva.Stage, Props>(function WallCanvas(
                   /* dragBoundFunc updates dragging state */
                 }}
                 onDragEnd={(x, y) => {
+                  if (guidesRaf.current != null) {
+                    cancelAnimationFrame(guidesRaf.current);
+                    guidesRaf.current = null;
+                  }
+                  pendingDrag.current = null;
                   setDragging(null);
                   setGuides([]);
                   onMoveItem(item.id, x, y);

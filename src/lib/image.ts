@@ -180,3 +180,43 @@ export async function cropToOpaqueBounds(
     img.src = dataUrl;
   });
 }
+
+/**
+ * Downscale a transparent PNG so its longest edge is at most `maxDim`.
+ * Preserves alpha (unlike downscaleImage, which re-encodes as JPEG).
+ */
+export async function downscaleTransparentImage(
+  dataUrl: string,
+  { maxDim = 1024 }: { maxDim?: number } = {},
+): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => {
+      try {
+        const { width, height } = img;
+        const longest = Math.max(width, height);
+        if (longest <= maxDim) {
+          resolve(dataUrl);
+          return;
+        }
+        const scale = maxDim / longest;
+        const targetW = Math.round(width * scale);
+        const targetH = Math.round(height * scale);
+        const canvas = document.createElement("canvas");
+        canvas.width = targetW;
+        canvas.height = targetH;
+        const ctx = canvas.getContext("2d");
+        if (!ctx) {
+          reject(new Error("Couldn't get a 2D canvas context"));
+          return;
+        }
+        ctx.drawImage(img, 0, 0, targetW, targetH);
+        resolve(canvas.toDataURL("image/png"));
+      } catch (e) {
+        reject(e instanceof Error ? e : new Error(String(e)));
+      }
+    };
+    img.onerror = () => reject(new Error("Couldn't load the image"));
+    img.src = dataUrl;
+  });
+}

@@ -24,6 +24,8 @@ export type UseHistoryReturn<T> = {
   state: T;
   /** Replaces the present state and pushes the prior present to the undo stack (with coalescing). */
   setState: (next: Updater<T>) => void;
+  /** Hard-reset present and clear undo/redo (e.g. restoring a crash draft). */
+  replaceState: (next: T) => void;
   undo: () => void;
   redo: () => void;
   canUndo: boolean;
@@ -57,6 +59,11 @@ export function useHistory<T>(initial: T): UseHistoryReturn<T> {
     });
   }, []);
 
+  const replaceState = useCallback((next: T) => {
+    lastPushAt.current = 0;
+    setFrame({ past: [], present: next, future: [] });
+  }, []);
+
   const undo = useCallback(() => {
     setFrame((f) => {
       if (f.past.length === 0) return f;
@@ -86,6 +93,7 @@ export function useHistory<T>(initial: T): UseHistoryReturn<T> {
   return {
     state: frame.present,
     setState,
+    replaceState,
     undo,
     redo,
     canUndo: frame.past.length > 0,

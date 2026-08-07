@@ -7,7 +7,7 @@ import type { Unit } from "@/lib/types";
 import { fromMm, toMm } from "@/lib/units";
 import BrandedHeader from "./BrandedHeader";
 
-export type SaveStatus = "idle" | "saving" | "saved" | "error";
+export type SaveStatus = "idle" | "unsaved" | "saving" | "saved" | "error";
 
 type Props = {
   roomName: string;
@@ -18,6 +18,8 @@ type Props = {
   eyeLineEnabled: boolean;
   eyeLineHeightMm: number;
   saveStatus: SaveStatus;
+  saveError?: string | null;
+  onRetrySave?: () => void;
   onChangeName: (name: string) => void;
   onChangeUnit: (unit: Unit) => void;
   onChangeWall: (widthMm: number, heightMm: number) => void;
@@ -44,6 +46,8 @@ export default function Toolbar({
   eyeLineEnabled,
   eyeLineHeightMm,
   saveStatus,
+  saveError = null,
+  onRetrySave,
   onChangeName,
   onChangeUnit,
   onChangeWall,
@@ -125,7 +129,11 @@ export default function Toolbar({
           aria-label="Room name"
         />
 
-        <SaveIndicator status={saveStatus} />
+        <SaveIndicator
+          status={saveStatus}
+          error={saveError}
+          onRetry={onRetrySave}
+        />
 
         <div className="flex items-center gap-2 ml-4">
           <span className="text-[10px] leading-4 text-content-disabled">Wall</span>
@@ -317,25 +325,56 @@ function ToggleButton({
   );
 }
 
-function SaveIndicator({ status }: { status: SaveStatus }) {
+function SaveIndicator({
+  status,
+  error,
+  onRetry,
+}: {
+  status: SaveStatus;
+  error?: string | null;
+  onRetry?: () => void;
+}) {
+  if (status === "idle") return <span className="min-w-[56px]" />;
+
   const text =
     status === "saving"
       ? "Saving…"
-      : status === "saved"
-        ? "Saved"
-        : status === "error"
-          ? "Save failed"
-          : "";
+      : status === "unsaved"
+        ? "Unsaved"
+        : status === "saved"
+          ? "Saved"
+          : status === "error"
+            ? "Save failed"
+            : "";
   const color =
     status === "error"
       ? "text-content-negative"
-      : "text-content-disabled";
+      : status === "unsaved"
+        ? "text-content-secondary"
+        : "text-content-disabled";
+  const title =
+    status === "error"
+      ? error || "Save failed — click to retry"
+      : status === "saved" && error
+        ? error
+        : undefined;
+
   return (
     <span
-      className={`text-[10px] leading-4 ${color} min-w-[56px]`}
+      className={`text-[11px] leading-4 ${color} min-w-[56px] inline-flex items-center gap-1.5`}
       aria-live="polite"
+      title={title}
     >
-      {text}
+      <span>{text}</span>
+      {status === "error" && onRetry && (
+        <button
+          type="button"
+          onClick={onRetry}
+          className="underline text-content-negative hover:text-content-primary"
+        >
+          Retry
+        </button>
+      )}
     </span>
   );
 }

@@ -64,9 +64,11 @@ class SupabaseRepo implements RoomsRepo {
       .maybeSingle();
     if (error) throw new Error(error.message);
     if (!data) return null;
-    const body = data.data ?? {};
+    const body = (data.data ?? {}) as Omit<Room, "name">;
     return {
       name: (data.name as string) ?? "Untitled room",
+      ...body,
+      // Guaranteed fields even if an older row is sparse.
       wallWidth: body.wallWidth,
       wallHeight: body.wallHeight,
       unit: body.unit,
@@ -84,15 +86,17 @@ class SupabaseRepo implements RoomsRepo {
     return { id: data!.id as string };
   }
   async update(id: string, room: Room): Promise<void> {
-    const { error } = await this.client
+    const { data, error } = await this.client
       .from(TABLE)
       .update({
         name: room.name,
         data: stripName(room),
         updated_at: new Date().toISOString(),
       })
-      .eq("id", id);
+      .eq("id", id)
+      .select("id");
     if (error) throw new Error(error.message);
+    if (!data || data.length === 0) throw new Error("Room not found");
   }
   async remove(id: string): Promise<void> {
     const { error } = await this.client.from(TABLE).delete().eq("id", id);
@@ -145,7 +149,9 @@ class FileRepo implements RoomsRepo {
 
   private async mutate(fn: (shape: FileShape) => void): Promise<void> {
     // Serialise writes so concurrent updates don't clobber each other.
-    this.writing = this.writing.then(async () => {
+    // Recover from a prior rejected write so one failure doesn't poison
+    // the entire queue for the process lifetime.
+    this.writing = this.writing.catch(() => {}).then(async () => {
       const shape = await this.read();
       fn(shape);
       await this.write(shape);

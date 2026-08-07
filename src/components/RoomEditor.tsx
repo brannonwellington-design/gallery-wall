@@ -4,15 +4,18 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import type Konva from "konva";
 import type { Frame, Item, Room, Unit } from "@/lib/types";
-import { DEFAULT_EYE_LINE_HEIGHT_MM, makeDefaultRoom } from "@/lib/defaults";
-import { cropToOpaqueBounds } from "@/lib/image";
+import { DEFAULT_EYE_LINE_HEIGHT_MM } from "@/lib/defaults";
+import { cropToOpaqueBounds, downscaleTransparentImage } from "@/lib/image";
 import { randomizeLayout } from "@/lib/layout";
+import { clearDraft, loadDraft } from "@/lib/roomDraft";
+import { roomFingerprint } from "@/lib/roomFingerprint";
 import { toMm } from "@/lib/units";
 import { useHistory } from "@/lib/useHistory";
+import { useRoomAutosave } from "@/lib/useRoomAutosave";
 import AddItemForm from "./AddItemForm";
 import EditItemPanel from "./EditItemPanel";
 import ItemsList from "./ItemsList";
-import Toolbar, { type SaveStatus } from "./Toolbar";
+import Toolbar from "./Toolbar";
 
 const WallCanvas = dynamic(() => import("./WallCanvas"), { ssr: false });
 
@@ -36,6 +39,7 @@ export default function RoomEditor({ roomId, initialRoom }: Props) {
   const {
     state: room,
     setState: setRoom,
+    replaceState,
     undo,
     redo,
     canUndo,
@@ -43,43 +47,39 @@ export default function RoomEditor({ roomId, initialRoom }: Props) {
   } = useHistory<Room>(initialRoom);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [snapEnabled, setSnapEnabled] = useState(true);
-  const [saveStatus, setSaveStatus] = useState<SaveStatus>("idle");
+  const [ready, setReady] = useState(false);
   const stageRef = useRef<Konva.Stage | null>(null);
 
-  // Auto-save: debounce 500ms after the last change.
-  const lastSaved = useRef<string>(JSON.stringify(initialRoom));
-  const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const { saveStatus, saveError, retrySave, markSaved } = useRoomAutosave({
+    roomId,
+    room,
+    enabled: ready,
+  });
 
+  // Crash recovery: restore a newer local draft before enabling autosave.
   useEffect(() => {
-    const snapshot = JSON.stringify(room);
-    if (snapshot === lastSaved.current) return;
-    if (saveTimer.current) clearTimeout(saveTimer.current);
-    saveTimer.current = setTimeout(() => {
-      void save(snapshot, room);
-    }, 500);
-    return () => {
-      if (saveTimer.current) clearTimeout(saveTimer.current);
-    };
-    async function save(snap: string, body: Room) {
-      setSaveStatus("saving");
-      try {
-        const res = await fetch(`/api/rooms/${roomId}`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ room: body }),
-        });
-        if (!res.ok) {
-          const txt = await res.text().catch(() => "");
-          throw new Error(txt || `HTTP ${res.status}`);
-        }
-        lastSaved.current = snap;
-        setSaveStatus("saved");
-      } catch (e) {
-        console.error("Save failed", e);
-        setSaveStatus("error");
+    let cancelled = false;
+    (async () => {
+      const draft = await loadDraft(roomId);
+      if (cancelled) return;
+      if (
+        draft &&
+        roomFingerprint(draft.room) !== roomFingerprint(initialRoom)
+      ) {
+        replaceState(draft.room);
+        // Leave dirty — autosave will push the recovered draft to the server.
+      } else {
+        markSaved(initialRoom);
+        void clearDraft(roomId);
       }
-    }
-  }, [room, roomId]);
+      setReady(true);
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // Only on mount / room identity change.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [roomId]);
 
   function changeUnit(unit: Unit) {
     setRoom((r) => ({ ...r, unit }));
@@ -231,6 +231,12 @@ export default function RoomEditor({ roomId, initialRoom }: Props) {
         } catch {
           // Crop failures shouldn't block the bg-removal result.
         }
+        // Cap PNG size so rooms stay under the PATCH body limit.
+        try {
+          finalImage = await downscaleTransparentImage(finalImage);
+        } catch {
+          // Keep the full PNG if downscale fails.
+        }
         setRoom((r) => ({
           ...r,
           items: r.items.map((it) => {
@@ -318,7 +324,7 @@ export default function RoomEditor({ roomId, initialRoom }: Props) {
 
   function clearWall() {
     if (!confirm("Remove all pieces from this wall?")) return;
-    setRoom((r) => ({ ...makeDefaultRoom(), name: r.name }));
+    setRoom((r) => ({ ...r, items: [] }));
     setSelectedId(null);
   }
 
@@ -356,6 +362,8 @@ export default function RoomEditor({ roomId, initialRoom }: Props) {
         eyeLineEnabled={room.eyeLineEnabled ?? true}
         eyeLineHeightMm={room.eyeLineHeight ?? DEFAULT_EYE_LINE_HEIGHT_MM}
         saveStatus={saveStatus}
+        saveError={saveError}
+        onRetrySave={retrySave}
         onChangeName={changeName}
         onChangeUnit={changeUnit}
         onChangeWall={changeWall}

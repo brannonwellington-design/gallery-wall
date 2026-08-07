@@ -24,7 +24,15 @@ export async function PATCH(req: Request, { params }: Ctx) {
     if (!body.room || !isRoom(body.room)) {
       return NextResponse.json({ error: "Invalid room body" }, { status: 400 });
     }
-    await getRepo().update(id, body.room);
+    try {
+      await getRepo().update(id, body.room);
+    } catch (e) {
+      const msg = errorMessage(e);
+      if (msg === "Room not found") {
+        return NextResponse.json({ error: msg }, { status: 404 });
+      }
+      throw e;
+    }
     return NextResponse.json({ ok: true });
   } catch (e) {
     return NextResponse.json({ error: errorMessage(e) }, { status: 500 });

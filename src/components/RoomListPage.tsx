@@ -9,9 +9,13 @@ import BrandedHeader from "./BrandedHeader";
 
 type Props = {
   initialRooms: RoomSummary[];
+  lastUpdatedLabel: string;
 };
 
-export default function RoomListPage({ initialRooms }: Props) {
+export default function RoomListPage({
+  initialRooms,
+  lastUpdatedLabel,
+}: Props) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [creating, setCreating] = useState(false);
@@ -79,6 +83,10 @@ export default function RoomListPage({ initialRooms }: Props) {
           <div className="flex items-center gap-2 text-[12px] leading-4 text-content-disabled tabular">
             <span>
               {count} {count === 1 ? "room" : "rooms"}
+            </span>
+            <span aria-hidden="true">·</span>
+            <span title="Commit time of the currently deployed build">
+              Updated {lastUpdatedLabel}
             </span>
           </div>
         </header>

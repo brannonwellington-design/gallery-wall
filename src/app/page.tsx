@@ -1,10 +1,14 @@
 import { getRepo } from "@/lib/repo";
+import { formatCommitDate, getBuildInfo } from "@/lib/buildInfo";
 import RoomListPage from "@/components/RoomListPage";
 import BrandedHeader from "@/components/BrandedHeader";
 
 export const dynamic = "force-dynamic";
 
 export default async function Home() {
+  const { commitDate } = getBuildInfo();
+  const lastUpdatedLabel = formatCommitDate(commitDate);
+
   let rooms;
   try {
     rooms = await getRepo().list();
@@ -26,9 +30,17 @@ export default async function Home() {
             Check the Supabase configuration in <span className="tabular">.env.local</span>,
             or unset the env vars to fall back to local file storage.
           </p>
+          <p className="mt-6 text-[12px] leading-4 text-content-disabled tabular">
+            Updated {lastUpdatedLabel}
+          </p>
         </main>
       </div>
     );
   }
-  return <RoomListPage initialRooms={rooms} />;
+  return (
+    <RoomListPage
+      initialRooms={rooms}
+      lastUpdatedLabel={lastUpdatedLabel}
+    />
+  );
 }

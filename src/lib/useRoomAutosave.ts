@@ -20,6 +20,8 @@ type Options = {
   room: Room;
   /** When false, skip server saves (e.g. while restoring a local draft). */
   enabled?: boolean;
+  /** Called after a successful server save with the new updatedAt. */
+  onSaved?: (updatedAt: string) => void;
 };
 
 type SaveFn = (
@@ -31,6 +33,7 @@ export function useRoomAutosave({
   roomId,
   room,
   enabled = true,
+  onSaved,
 }: Options): {
   saveStatus: SaveStatus;
   saveError: string | null;
@@ -42,6 +45,7 @@ export function useRoomAutosave({
 
   const roomRef = useRef(room);
   const enabledRef = useRef(enabled);
+  const onSavedRef = useRef(onSaved);
   const lastSavedFp = useRef(roomFingerprint(room));
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const draftTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -60,6 +64,10 @@ export function useRoomAutosave({
   useEffect(() => {
     enabledRef.current = enabled;
   }, [enabled]);
+
+  useEffect(() => {
+    onSavedRef.current = onSaved;
+  }, [onSaved]);
 
   const markSaved = useCallback((r: Room) => {
     lastSavedFp.current = roomFingerprint(r);
@@ -125,6 +133,10 @@ export function useRoomAutosave({
           throw new Error(txt || `HTTP ${res.status}`);
         }
 
+        const data = (await res.json().catch(() => null)) as {
+          updatedAt?: string;
+        } | null;
+
         // Stale response — a newer save superseded this one.
         if (gen !== saveGen.current) return;
 
@@ -137,6 +149,7 @@ export function useRoomAutosave({
             : null,
         );
         void clearDraft(roomId);
+        onSavedRef.current?.(data?.updatedAt ?? new Date().toISOString());
       } catch (e) {
         if (gen !== saveGen.current) return;
         console.error("Save failed", e);

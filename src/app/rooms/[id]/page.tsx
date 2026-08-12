@@ -11,9 +11,9 @@ export default async function RoomPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  let room;
+  let record;
   try {
-    room = await getRepo().get(id);
+    record = await getRepo().get(id);
   } catch (e) {
     return (
       <ErrorScreen
@@ -23,7 +23,7 @@ export default async function RoomPage({
     );
   }
 
-  if (!room) {
+  if (!record) {
     return (
       <ErrorScreen
         title="Room not found"
@@ -32,7 +32,13 @@ export default async function RoomPage({
     );
   }
 
-  return <RoomEditor roomId={id} initialRoom={room} />;
+  return (
+    <RoomEditor
+      roomId={id}
+      initialRoom={record.room}
+      initialUpdatedAt={record.updatedAt}
+    />
+  );
 }
 
 function ErrorScreen({ title, message }: { title: string; message: string }) {

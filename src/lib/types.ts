@@ -48,3 +48,9 @@ export type RoomSummary = {
   itemCount: number;
   updatedAt: string;
 };
+
+/** Room contents plus persistence metadata. */
+export type RoomRecord = {
+  room: Room;
+  updatedAt: string;
+};

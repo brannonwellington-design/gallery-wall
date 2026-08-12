@@ -33,9 +33,14 @@ const ARROWS: Record<string, [number, number]> = {
 type Props = {
   roomId: string;
   initialRoom: Room;
+  initialUpdatedAt: string;
 };
 
-export default function RoomEditor({ roomId, initialRoom }: Props) {
+export default function RoomEditor({
+  roomId,
+  initialRoom,
+  initialUpdatedAt,
+}: Props) {
   const {
     state: room,
     setState: setRoom,
@@ -48,12 +53,18 @@ export default function RoomEditor({ roomId, initialRoom }: Props) {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [snapEnabled, setSnapEnabled] = useState(true);
   const [ready, setReady] = useState(false);
+  const [updatedAt, setUpdatedAt] = useState(initialUpdatedAt);
   const stageRef = useRef<Konva.Stage | null>(null);
+
+  const onSaved = useCallback((iso: string) => {
+    setUpdatedAt(iso);
+  }, []);
 
   const { saveStatus, saveError, retrySave, markSaved } = useRoomAutosave({
     roomId,
     room,
     enabled: ready,
+    onSaved,
   });
 
   // Crash recovery: restore a newer local draft before enabling autosave.
@@ -364,6 +375,7 @@ export default function RoomEditor({ roomId, initialRoom }: Props) {
         saveStatus={saveStatus}
         saveError={saveError}
         onRetrySave={retrySave}
+        lastEditedAt={updatedAt}
         onChangeName={changeName}
         onChangeUnit={changeUnit}
         onChangeWall={changeWall}

@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { ArrowLeft, Download, FileDown, Redo2, Shuffle, Trash2, Undo2 } from "lucide-react";
+import { formatAbsolute, formatEditedLabel } from "@/lib/dates";
 import type { Unit } from "@/lib/types";
 import { fromMm, toMm } from "@/lib/units";
 import BrandedHeader from "./BrandedHeader";
@@ -20,6 +21,7 @@ type Props = {
   saveStatus: SaveStatus;
   saveError?: string | null;
   onRetrySave?: () => void;
+  lastEditedAt?: string | null;
   onChangeName: (name: string) => void;
   onChangeUnit: (unit: Unit) => void;
   onChangeWall: (widthMm: number, heightMm: number) => void;
@@ -48,6 +50,7 @@ export default function Toolbar({
   saveStatus,
   saveError = null,
   onRetrySave,
+  lastEditedAt = null,
   onChangeName,
   onChangeUnit,
   onChangeWall,
@@ -134,6 +137,14 @@ export default function Toolbar({
           error={saveError}
           onRetry={onRetrySave}
         />
+        {lastEditedAt && (
+          <span
+            className="text-[11px] leading-4 text-content-disabled tabular hidden sm:inline"
+            title={formatAbsolute(lastEditedAt)}
+          >
+            {formatEditedLabel(lastEditedAt)}
+          </span>
+        )}
 
         <div className="flex items-center gap-2 ml-4">
           <span className="text-[10px] leading-4 text-content-disabled">Wall</span>

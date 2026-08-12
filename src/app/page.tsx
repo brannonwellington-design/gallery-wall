@@ -31,7 +31,7 @@ export default async function Home() {
             or unset the env vars to fall back to local file storage.
           </p>
           <p className="mt-6 text-[12px] leading-4 text-content-disabled tabular">
-            Updated {lastUpdatedLabel}
+            Platform updated {lastUpdatedLabel}
           </p>
         </main>
       </div>

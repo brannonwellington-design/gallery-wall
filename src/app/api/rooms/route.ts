@@ -34,8 +34,8 @@ export async function POST(req: Request) {
         return NextResponse.json({ error: "Source room not found" }, { status: 404 });
       }
       const { id } = await repo.create({
-        ...src,
-        name: `Copy of ${src.name || "Untitled room"}`,
+        ...src.room,
+        name: `Copy of ${src.room.name || "Untitled room"}`,
       });
       return NextResponse.json({ id }, { status: 201 });
     }

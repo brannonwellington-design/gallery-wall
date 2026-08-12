@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useState, useTransition } from "react";
 import { Copy, Plus, Trash2 } from "lucide-react";
+import { formatAbsolute, formatEditedLabel } from "@/lib/dates";
 import type { RoomSummary } from "@/lib/types";
 import BrandedHeader from "./BrandedHeader";
 
@@ -80,13 +81,13 @@ export default function RoomListPage({
             Plan gallery walls to scale. Drop in your art, set the wall
             dimensions, and arrange pieces against an eye-level guide.
           </p>
-          <div className="flex items-center gap-2 text-[12px] leading-4 text-content-disabled tabular">
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[12px] leading-4 text-content-disabled tabular">
             <span>
               {count} {count === 1 ? "room" : "rooms"}
             </span>
             <span aria-hidden="true">·</span>
             <span title="Commit time of the currently deployed build">
-              Updated {lastUpdatedLabel}
+              Platform updated {lastUpdatedLabel}
             </span>
           </div>
         </header>
@@ -126,11 +127,14 @@ export default function RoomListPage({
                     <span className="text-[16px] leading-6 text-content-primary truncate">
                       {room.name || "Untitled room"}
                     </span>
-                    <span className="text-[12px] leading-4 text-content-disabled tabular">
+                    <span
+                      className="text-[12px] leading-4 text-content-disabled tabular"
+                      title={formatAbsolute(room.updatedAt)}
+                    >
                       {room.itemCount}{" "}
                       {room.itemCount === 1 ? "piece" : "pieces"}
                       {" · "}
-                      {formatRelative(room.updatedAt)}
+                      {formatEditedLabel(room.updatedAt)}
                     </span>
                   </Link>
                   <button
@@ -193,18 +197,4 @@ function NewRoomButton({
       {creating ? "Creating…" : "New room"}
     </button>
   );
-}
-
-function formatRelative(iso: string): string {
-  const then = new Date(iso).getTime();
-  if (Number.isNaN(then)) return "";
-  const diff = Date.now() - then;
-  const min = Math.round(diff / 60000);
-  if (min < 1) return "just now";
-  if (min < 60) return `${min}m ago`;
-  const hr = Math.round(min / 60);
-  if (hr < 24) return `${hr}h ago`;
-  const day = Math.round(hr / 24);
-  if (day < 30) return `${day}d ago`;
-  return new Date(iso).toLocaleDateString();
 }

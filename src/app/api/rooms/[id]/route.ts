@@ -9,9 +9,12 @@ type Ctx = { params: Promise<{ id: string }> };
 export async function GET(_req: Request, { params }: Ctx) {
   try {
     const { id } = await params;
-    const room = await getRepo().get(id);
-    if (!room) return NextResponse.json({ error: "Not found" }, { status: 404 });
-    return NextResponse.json({ room });
+    const record = await getRepo().get(id);
+    if (!record) return NextResponse.json({ error: "Not found" }, { status: 404 });
+    return NextResponse.json({
+      room: record.room,
+      updatedAt: record.updatedAt,
+    });
   } catch (e) {
     return NextResponse.json({ error: errorMessage(e) }, { status: 500 });
   }
@@ -25,7 +28,8 @@ export async function PATCH(req: Request, { params }: Ctx) {
       return NextResponse.json({ error: "Invalid room body" }, { status: 400 });
     }
     try {
-      await getRepo().update(id, body.room);
+      const { updatedAt } = await getRepo().update(id, body.room);
+      return NextResponse.json({ ok: true, updatedAt });
     } catch (e) {
       const msg = errorMessage(e);
       if (msg === "Room not found") {
@@ -33,7 +37,6 @@ export async function PATCH(req: Request, { params }: Ctx) {
       }
       throw e;
     }
-    return NextResponse.json({ ok: true });
   } catch (e) {
     return NextResponse.json({ error: errorMessage(e) }, { status: 500 });
   }

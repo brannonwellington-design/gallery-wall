@@ -2,14 +2,14 @@ import "server-only";
 import { promises as fs } from "fs";
 import path from "path";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
-import type { Room, RoomSummary } from "./types";
+import type { Room, RoomRecord, RoomSummary } from "./types";
 import { makeDefaultRoom } from "./defaults";
 
 export interface RoomsRepo {
   list(): Promise<RoomSummary[]>;
-  get(id: string): Promise<Room | null>;
+  get(id: string): Promise<RoomRecord | null>;
   create(room?: Partial<Room>): Promise<{ id: string }>;
-  update(id: string, room: Room): Promise<void>;
+  update(id: string, room: Room): Promise<{ updatedAt: string }>;
   remove(id: string): Promise<void>;
 }
 
@@ -56,23 +56,26 @@ class SupabaseRepo implements RoomsRepo {
       updatedAt: row.updated_at as string,
     }));
   }
-  async get(id: string): Promise<Room | null> {
+  async get(id: string): Promise<RoomRecord | null> {
     const { data, error } = await this.client
       .from(TABLE)
-      .select("id, name, data")
+      .select("id, name, data, updated_at")
       .eq("id", id)
       .maybeSingle();
     if (error) throw new Error(error.message);
     if (!data) return null;
     const body = (data.data ?? {}) as Omit<Room, "name">;
     return {
-      name: (data.name as string) ?? "Untitled room",
-      ...body,
-      // Guaranteed fields even if an older row is sparse.
-      wallWidth: body.wallWidth,
-      wallHeight: body.wallHeight,
-      unit: body.unit,
-      items: Array.isArray(body.items) ? body.items : [],
+      room: {
+        name: (data.name as string) ?? "Untitled room",
+        ...body,
+        // Guaranteed fields even if an older row is sparse.
+        wallWidth: body.wallWidth,
+        wallHeight: body.wallHeight,
+        unit: body.unit,
+        items: Array.isArray(body.items) ? body.items : [],
+      },
+      updatedAt: (data.updated_at as string) ?? new Date().toISOString(),
     };
   }
   async create(partial?: Partial<Room>): Promise<{ id: string }> {
@@ -85,18 +88,20 @@ class SupabaseRepo implements RoomsRepo {
     if (error) throw new Error(error.message);
     return { id: data!.id as string };
   }
-  async update(id: string, room: Room): Promise<void> {
+  async update(id: string, room: Room): Promise<{ updatedAt: string }> {
+    const updatedAt = new Date().toISOString();
     const { data, error } = await this.client
       .from(TABLE)
       .update({
         name: room.name,
         data: stripName(room),
-        updated_at: new Date().toISOString(),
+        updated_at: updatedAt,
       })
       .eq("id", id)
       .select("id");
     if (error) throw new Error(error.message);
     if (!data || data.length === 0) throw new Error("Room not found");
+    return { updatedAt };
   }
   async remove(id: string): Promise<void> {
     const { error } = await this.client.from(TABLE).delete().eq("id", id);
@@ -171,11 +176,14 @@ class FileRepo implements RoomsRepo {
       }));
   }
 
-  async get(id: string): Promise<Room | null> {
+  async get(id: string): Promise<RoomRecord | null> {
     const shape = await this.read();
     const r = shape.rooms[id];
     if (!r) return null;
-    return { name: r.name, ...r.data };
+    return {
+      room: { name: r.name, ...r.data },
+      updatedAt: r.updated_at,
+    };
   }
 
   async create(partial?: Partial<Room>): Promise<{ id: string }> {
@@ -194,14 +202,16 @@ class FileRepo implements RoomsRepo {
     return { id };
   }
 
-  async update(id: string, room: Room): Promise<void> {
+  async update(id: string, room: Room): Promise<{ updatedAt: string }> {
+    const updatedAt = new Date().toISOString();
     await this.mutate((shape) => {
       const existing = shape.rooms[id];
       if (!existing) throw new Error("Room not found");
       existing.name = room.name;
       existing.data = stripName(room) as Omit<Room, "name">;
-      existing.updated_at = new Date().toISOString();
+      existing.updated_at = updatedAt;
     });
+    return { updatedAt };
   }
 
   async remove(id: string): Promise<void> {

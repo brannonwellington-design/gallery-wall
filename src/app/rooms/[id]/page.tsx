@@ -1,9 +1,11 @@
 import Link from "next/link";
+import { externalizeRoomImages } from "@/lib/imageStore";
 import { getRepo } from "@/lib/repo";
 import RoomEditor from "@/components/RoomEditor";
 import BrandedHeader from "@/components/BrandedHeader";
 
 export const dynamic = "force-dynamic";
+export const maxDuration = 60;
 
 export default async function RoomPage({
   params,
@@ -32,11 +34,25 @@ export default async function RoomPage({
     );
   }
 
+  // Move any leftover base64 images into Storage so the editor starts with
+  // a lean room (and so subsequent autosaves fit under Vercel's body limit).
+  let room = record.room;
+  let updatedAt = record.updatedAt;
+  try {
+    const migrated = await externalizeRoomImages(id, room);
+    if (migrated.changed) {
+      room = migrated.room;
+      ({ updatedAt } = await getRepo().update(id, room));
+    }
+  } catch (e) {
+    console.error("[room-page] image migration failed", e);
+  }
+
   return (
     <RoomEditor
       roomId={id}
-      initialRoom={record.room}
-      initialUpdatedAt={record.updatedAt}
+      initialRoom={room}
+      initialUpdatedAt={updatedAt}
     />
   );
 }

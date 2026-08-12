@@ -2,6 +2,11 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Room } from "./types";
+import {
+  externalizeRoomImagesClient,
+  roomExceedsPatchLimit,
+  roomPayloadBytes,
+} from "./externalizeClient";
 import { clearDraft, saveDraft } from "./roomDraft";
 import { roomFingerprint } from "./roomFingerprint";
 
@@ -11,9 +16,8 @@ const DEBOUNCE_MS = 500;
 const DRAFT_DEBOUNCE_MS = 200;
 const RETRY_BASE_MS = 1500;
 const RETRY_MAX_MS = 15000;
-/** Soft warn / hard fail around Vercel Hobby body limits (~4.5 MB). */
+/** Soft warn around Vercel Hobby body limits (~4.5 MB). */
 const PAYLOAD_WARN_BYTES = 3_500_000;
-const PAYLOAD_MAX_BYTES = 4_400_000;
 
 type Options = {
   roomId: string;
@@ -22,6 +26,11 @@ type Options = {
   enabled?: boolean;
   /** Called after a successful server save with the new updatedAt. */
   onSaved?: (updatedAt: string) => void;
+  /**
+   * Called when inline images were uploaded to Storage so the editor can
+   * swap data URLs for https URLs without treating it as a user edit.
+   */
+  onRoomNormalized?: (room: Room) => void;
 };
 
 type SaveFn = (
@@ -34,6 +43,7 @@ export function useRoomAutosave({
   room,
   enabled = true,
   onSaved,
+  onRoomNormalized,
 }: Options): {
   saveStatus: SaveStatus;
   saveError: string | null;
@@ -46,6 +56,7 @@ export function useRoomAutosave({
   const roomRef = useRef(room);
   const enabledRef = useRef(enabled);
   const onSavedRef = useRef(onSaved);
+  const onRoomNormalizedRef = useRef(onRoomNormalized);
   const lastSavedFp = useRef(roomFingerprint(room));
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const draftTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -69,6 +80,10 @@ export function useRoomAutosave({
     onSavedRef.current = onSaved;
   }, [onSaved]);
 
+  useEffect(() => {
+    onRoomNormalizedRef.current = onRoomNormalized;
+  }, [onRoomNormalized]);
+
   const markSaved = useCallback((r: Room) => {
     lastSavedFp.current = roomFingerprint(r);
     setSaveStatus("saved");
@@ -86,7 +101,30 @@ export function useRoomAutosave({
     async (body, { keepalive = false } = {}) => {
       if (!enabledRef.current) return;
 
-      const fp = roomFingerprint(body);
+      let toSave = body;
+
+      // If the room still has inline data URLs and the PATCH would exceed
+      // Vercel's body limit, upload images individually first.
+      if (roomExceedsPatchLimit(toSave)) {
+        setSaveStatus("saving");
+        setSaveError(null);
+        const normalized = await externalizeRoomImagesClient(roomId, toSave);
+        if (roomFingerprint(normalized) !== roomFingerprint(toSave)) {
+          toSave = normalized;
+          roomRef.current = normalized;
+          onRoomNormalizedRef.current?.(normalized);
+        }
+        if (roomExceedsPatchLimit(toSave)) {
+          setSaveStatus("error");
+          setSaveError(
+            "Room is too large to save. Try removing a few pieces or re-adding images.",
+          );
+          void saveDraft(roomId, toSave);
+          return;
+        }
+      }
+
+      const fp = roomFingerprint(toSave);
       if (fp === lastSavedFp.current) {
         setSaveStatus("saved");
         setSaveError(null);
@@ -98,17 +136,8 @@ export function useRoomAutosave({
         return;
       }
 
-      const payload = JSON.stringify({ room: body });
-      // Base64 data URLs are ASCII — byte length ≈ string length.
-      const bytes = payload.length;
-      if (bytes > PAYLOAD_MAX_BYTES) {
-        setSaveStatus("error");
-        setSaveError(
-          "Room is too large to save (images exceed the upload limit). Try fewer pieces or re-add images at smaller size.",
-        );
-        void saveDraft(roomId, body);
-        return;
-      }
+      const payload = JSON.stringify({ room: toSave });
+      const bytes = roomPayloadBytes(toSave);
 
       const gen = ++saveGen.current;
       inFlight.current = true;
@@ -135,12 +164,18 @@ export function useRoomAutosave({
 
         const data = (await res.json().catch(() => null)) as {
           updatedAt?: string;
+          room?: Room;
         } | null;
 
         // Stale response — a newer save superseded this one.
         if (gen !== saveGen.current) return;
 
-        lastSavedFp.current = fp;
+        const savedRoom = data?.room ?? toSave;
+        lastSavedFp.current = roomFingerprint(savedRoom);
+        if (data?.room) {
+          roomRef.current = data.room;
+          onRoomNormalizedRef.current?.(data.room);
+        }
         retryDelay.current = RETRY_BASE_MS;
         setSaveStatus("saved");
         setSaveError(

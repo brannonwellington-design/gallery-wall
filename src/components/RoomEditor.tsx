@@ -8,6 +8,10 @@ import { DEFAULT_EYE_LINE_HEIGHT_MM } from "@/lib/defaults";
 import { cropToOpaqueBounds, downscaleTransparentImage } from "@/lib/image";
 import { randomizeLayout } from "@/lib/layout";
 import { clearDraft, loadDraft } from "@/lib/roomDraft";
+import {
+  preferStoredImages,
+  roomExceedsPatchLimit,
+} from "@/lib/externalizeClient";
 import { roomFingerprint } from "@/lib/roomFingerprint";
 import { toMm } from "@/lib/units";
 import { useHistory } from "@/lib/useHistory";
@@ -60,12 +64,28 @@ export default function RoomEditor({
     setUpdatedAt(iso);
   }, []);
 
+  const markSavedRef = useRef<((r: Room) => void) | null>(null);
+
+  const onRoomNormalized = useCallback(
+    (normalized: Room) => {
+      // Swap data URLs for Storage URLs without creating an undo step.
+      replaceState(normalized);
+      markSavedRef.current?.(normalized);
+    },
+    [replaceState],
+  );
+
   const { saveStatus, saveError, retrySave, markSaved } = useRoomAutosave({
     roomId,
     room,
     enabled: ready,
     onSaved,
+    onRoomNormalized,
   });
+
+  useEffect(() => {
+    markSavedRef.current = markSaved;
+  }, [markSaved]);
 
   // Crash recovery: restore a newer local draft before enabling autosave.
   useEffect(() => {
@@ -77,7 +97,13 @@ export default function RoomEditor({
         draft &&
         roomFingerprint(draft.room) !== roomFingerprint(initialRoom)
       ) {
-        replaceState(draft.room);
+        // Prefer Storage URLs from the server when the draft still has huge
+        // inline data URLs (pre-migration crash drafts).
+        let recovered = preferStoredImages(draft.room, initialRoom);
+        if (roomExceedsPatchLimit(recovered)) {
+          recovered = preferStoredImages(recovered, initialRoom);
+        }
+        replaceState(recovered);
         // Leave dirty — autosave will push the recovered draft to the server.
       } else {
         markSaved(initialRoom);

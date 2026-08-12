@@ -1,8 +1,10 @@
 import { NextResponse } from "next/server";
+import { externalizeRoomImages } from "@/lib/imageStore";
 import { getRepo } from "@/lib/repo";
 import type { Room } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
+export const maxDuration = 60;
 
 type Ctx = { params: Promise<{ id: string }> };
 
@@ -11,10 +13,14 @@ export async function GET(_req: Request, { params }: Ctx) {
     const { id } = await params;
     const record = await getRepo().get(id);
     if (!record) return NextResponse.json({ error: "Not found" }, { status: 404 });
-    return NextResponse.json({
-      room: record.room,
-      updatedAt: record.updatedAt,
-    });
+
+    const { room, changed } = await externalizeRoomImages(id, record.room);
+    let updatedAt = record.updatedAt;
+    if (changed) {
+      ({ updatedAt } = await getRepo().update(id, room));
+    }
+
+    return NextResponse.json({ room, updatedAt });
   } catch (e) {
     return NextResponse.json({ error: errorMessage(e) }, { status: 500 });
   }
@@ -28,8 +34,9 @@ export async function PATCH(req: Request, { params }: Ctx) {
       return NextResponse.json({ error: "Invalid room body" }, { status: 400 });
     }
     try {
-      const { updatedAt } = await getRepo().update(id, body.room);
-      return NextResponse.json({ ok: true, updatedAt });
+      const { room } = await externalizeRoomImages(id, body.room);
+      const { updatedAt } = await getRepo().update(id, room);
+      return NextResponse.json({ ok: true, updatedAt, room });
     } catch (e) {
       const msg = errorMessage(e);
       if (msg === "Room not found") {

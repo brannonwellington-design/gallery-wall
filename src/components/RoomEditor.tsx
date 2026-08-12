@@ -56,6 +56,7 @@ export default function RoomEditor({
   } = useHistory<Room>(initialRoom);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [snapEnabled, setSnapEnabled] = useState(true);
+  const [redlinesEnabled, setRedlinesEnabled] = useState(false);
   const [ready, setReady] = useState(false);
   const [updatedAt, setUpdatedAt] = useState(initialUpdatedAt);
   const stageRef = useRef<Konva.Stage | null>(null);
@@ -396,6 +397,7 @@ export default function RoomEditor({
         wallWidthMm={room.wallWidth}
         wallHeightMm={room.wallHeight}
         snapEnabled={snapEnabled}
+        redlinesEnabled={redlinesEnabled}
         eyeLineEnabled={room.eyeLineEnabled ?? true}
         eyeLineHeightMm={room.eyeLineHeight ?? DEFAULT_EYE_LINE_HEIGHT_MM}
         saveStatus={saveStatus}
@@ -406,6 +408,7 @@ export default function RoomEditor({
         onChangeUnit={changeUnit}
         onChangeWall={changeWall}
         onChangeSnap={setSnapEnabled}
+        onChangeRedlines={setRedlinesEnabled}
         onChangeEyeLineEnabled={(enabled) =>
           setRoom((r) => ({ ...r, eyeLineEnabled: enabled }))
         }
@@ -466,6 +469,7 @@ export default function RoomEditor({
             room={room}
             selectedId={selectedId}
             snapEnabled={snapEnabled}
+            redlinesEnabled={redlinesEnabled}
             onSelect={setSelectedId}
             onMoveItem={moveItem}
           />

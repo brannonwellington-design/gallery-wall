@@ -1,13 +1,13 @@
 import { getRepo } from "@/lib/repo";
-import { formatCommitDate, getBuildInfo } from "@/lib/buildInfo";
+import { getBuildInfo } from "@/lib/buildInfo";
 import RoomListPage from "@/components/RoomListPage";
 import BrandedHeader from "@/components/BrandedHeader";
+import LocalTime from "@/components/LocalTime";
 
 export const dynamic = "force-dynamic";
 
 export default async function Home() {
   const { commitDate } = getBuildInfo();
-  const lastUpdatedLabel = formatCommitDate(commitDate);
 
   let rooms;
   try {
@@ -31,7 +31,7 @@ export default async function Home() {
             or unset the env vars to fall back to local file storage.
           </p>
           <p className="mt-6 text-[12px] leading-4 text-content-disabled tabular">
-            Platform updated {lastUpdatedLabel}
+            <LocalTime iso={commitDate} prefix="Platform updated " />
           </p>
         </main>
       </div>
@@ -40,7 +40,7 @@ export default async function Home() {
   return (
     <RoomListPage
       initialRooms={rooms}
-      lastUpdatedLabel={lastUpdatedLabel}
+      platformUpdatedAt={commitDate}
     />
   );
 }

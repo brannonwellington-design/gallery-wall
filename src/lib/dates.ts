@@ -1,8 +1,13 @@
-/** e.g. "Aug 11, 2026, 1:09 PM PDT" */
+/** e.g. "Aug 11, 2026, 1:09 PM PDT"
+ *
+ * Always formats in the *runtime* local timezone (no fixed zone). Call from
+ * client components so each viewer sees their own local time — never from a
+ * server component, which would bake in the server's zone.
+ */
 export function formatAbsolute(iso: string): string {
   const date = new Date(iso);
   if (Number.isNaN(date.getTime())) return iso;
-  return new Intl.DateTimeFormat("en-US", {
+  return new Intl.DateTimeFormat(undefined, {
     month: "short",
     day: "numeric",
     year: "numeric",
@@ -12,7 +17,7 @@ export function formatAbsolute(iso: string): string {
   }).format(date);
 }
 
-/** e.g. "just now", "12m ago", "3h ago", "Aug 11, 2026" */
+/** e.g. "just now", "12m ago", "3h ago", "Aug 11, 2026" — viewer-local clock. */
 export function formatRelative(iso: string): string {
   const then = new Date(iso).getTime();
   if (Number.isNaN(then)) return "";
@@ -24,11 +29,11 @@ export function formatRelative(iso: string): string {
   if (hr < 24) return `${hr}h ago`;
   const day = Math.round(hr / 24);
   if (day < 30) return `${day}d ago`;
-  return new Date(iso).toLocaleDateString("en-US", {
+  return new Intl.DateTimeFormat(undefined, {
     month: "short",
     day: "numeric",
     year: "numeric",
-  });
+  }).format(new Date(iso));
 }
 
 /** Design-level label for when a room was last saved. */

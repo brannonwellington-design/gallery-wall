@@ -7,18 +7,21 @@ import type { Item, Room } from "@/lib/types";
 import { DEFAULT_EYE_LINE_HEIGHT_MM } from "@/lib/defaults";
 import { formatLength } from "@/lib/units";
 import { computeSnap, type Guide, type Rect as SnapRect } from "@/lib/snap";
+import { computeSpacingSegments, type SpacingSegment } from "@/lib/spacing";
 import ItemNode from "./ItemNode";
 
 type Props = {
   room: Room;
   selectedId: string | null;
   snapEnabled: boolean;
+  redlinesEnabled: boolean;
   onSelect: (id: string | null) => void;
   onMoveItem: (id: string, xMm: number, yMm: number) => void;
 };
 
 const PADDING = 56;
 const SNAP_THRESHOLD_PX = 6;
+const REDLINE = "#C62828";
 
 function itemRect(item: Item): SnapRect {
   const pad = (item.frame?.frameWidth ?? 0) + (item.frame?.matWidth ?? 0);
@@ -31,7 +34,7 @@ function itemRect(item: Item): SnapRect {
 }
 
 const WallCanvas = forwardRef<Konva.Stage, Props>(function WallCanvas(
-  { room, selectedId, snapEnabled, onSelect, onMoveItem },
+  { room, selectedId, snapEnabled, redlinesEnabled, onSelect, onMoveItem },
   ref,
 ) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -155,8 +158,9 @@ const WallCanvas = forwardRef<Konva.Stage, Props>(function WallCanvas(
     [offsetX, offsetY, scale, room.items, room.wallWidth, room.wallHeight, snapEnabled, eyeLineY, scheduleDragVisuals],
   );
 
-  // Decide which rect to show measurements for.
+  // Decide which rect to show measurements for (selected-item mode only).
   const measureItem: { rect: SnapRect } | null = (() => {
+    if (redlinesEnabled) return null;
     if (dragging) {
       const it = room.items.find((i) => i.id === dragging.id);
       if (it) {
@@ -169,6 +173,21 @@ const WallCanvas = forwardRef<Konva.Stage, Props>(function WallCanvas(
       if (it) return { rect: itemRect(it) };
     }
     return null;
+  })();
+
+  const redlineSegments: SpacingSegment[] = (() => {
+    if (!redlinesEnabled) return [];
+    const named = room.items.map((it) => {
+      const r = itemRect(it);
+      if (dragging && dragging.id === it.id) {
+        return { ...r, x: dragging.x, y: dragging.y, id: it.id };
+      }
+      return { ...r, id: it.id };
+    });
+    return computeSpacingSegments(named, {
+      width: room.wallWidth,
+      height: room.wallHeight,
+    });
   })();
 
   return (
@@ -265,6 +284,13 @@ const WallCanvas = forwardRef<Konva.Stage, Props>(function WallCanvas(
               <Measurements
                 rect={measureItem.rect}
                 wall={{ width: room.wallWidth, height: room.wallHeight }}
+                unit={room.unit}
+                scale={scale}
+              />
+            )}
+            {redlinesEnabled && (
+              <Redlines
+                segments={redlineSegments}
                 unit={room.unit}
                 scale={scale}
               />
@@ -476,6 +502,84 @@ function Measurements({
         fontSize={10}
         fill="#6B6861"
       />
+    </Group>
+  );
+}
+
+function Redlines({
+  segments,
+  unit,
+  scale,
+}: {
+  segments: SpacingSegment[];
+  unit: "in" | "cm";
+  scale: number;
+}) {
+  return (
+    <Group>
+      {segments.map((s, i) => {
+        const x0 = s.x0 * scale;
+        const y0 = s.y0 * scale;
+        const x1 = s.x1 * scale;
+        const y1 = s.y1 * scale;
+        const midX = (x0 + x1) / 2;
+        const midY = (y0 + y1) / 2;
+        const label = formatLength(s.distance, unit, 1);
+        // Tick marks at each end of the dimension line.
+        const tick = 4;
+        return (
+          <Group key={i}>
+            <Line
+              points={[x0, y0, x1, y1]}
+              stroke={REDLINE}
+              strokeWidth={1}
+            />
+            {s.kind === "h" ? (
+              <>
+                <Line
+                  points={[x0, y0 - tick, x0, y0 + tick]}
+                  stroke={REDLINE}
+                  strokeWidth={1}
+                />
+                <Line
+                  points={[x1, y1 - tick, x1, y1 + tick]}
+                  stroke={REDLINE}
+                  strokeWidth={1}
+                />
+                <Text
+                  text={label}
+                  x={midX - label.length * 2.6}
+                  y={midY - 14}
+                  fontSize={10}
+                  fontFamily="Inter, sans-serif"
+                  fill={REDLINE}
+                />
+              </>
+            ) : (
+              <>
+                <Line
+                  points={[x0 - tick, y0, x0 + tick, y0]}
+                  stroke={REDLINE}
+                  strokeWidth={1}
+                />
+                <Line
+                  points={[x1 - tick, y1, x1 + tick, y1]}
+                  stroke={REDLINE}
+                  strokeWidth={1}
+                />
+                <Text
+                  text={label}
+                  x={midX + 6}
+                  y={midY - 6}
+                  fontSize={10}
+                  fontFamily="Inter, sans-serif"
+                  fill={REDLINE}
+                />
+              </>
+            )}
+          </Group>
+        );
+      })}
     </Group>
   );
 }

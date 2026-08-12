@@ -16,6 +16,7 @@ type Props = {
   wallWidthMm: number;
   wallHeightMm: number;
   snapEnabled: boolean;
+  redlinesEnabled: boolean;
   eyeLineEnabled: boolean;
   eyeLineHeightMm: number;
   saveStatus: SaveStatus;
@@ -26,6 +27,7 @@ type Props = {
   onChangeUnit: (unit: Unit) => void;
   onChangeWall: (widthMm: number, heightMm: number) => void;
   onChangeSnap: (enabled: boolean) => void;
+  onChangeRedlines: (enabled: boolean) => void;
   onChangeEyeLineEnabled: (enabled: boolean) => void;
   onChangeEyeLineHeight: (heightMm: number) => void;
   onRandomize: () => void;
@@ -45,6 +47,7 @@ export default function Toolbar({
   wallWidthMm,
   wallHeightMm,
   snapEnabled,
+  redlinesEnabled,
   eyeLineEnabled,
   eyeLineHeightMm,
   saveStatus,
@@ -55,6 +58,7 @@ export default function Toolbar({
   onChangeUnit,
   onChangeWall,
   onChangeSnap,
+  onChangeRedlines,
   onChangeEyeLineEnabled,
   onChangeEyeLineHeight,
   onRandomize,
@@ -161,6 +165,14 @@ export default function Toolbar({
           title="Toggle snap (hold Alt to disable while dragging)"
         >
           Snap
+        </ToggleButton>
+
+        <ToggleButton
+          active={redlinesEnabled}
+          onClick={() => onChangeRedlines(!redlinesEnabled)}
+          title="Show spacing between pieces and to the wall edges"
+        >
+          Redlines
         </ToggleButton>
 
         <div className="flex items-center gap-2 ml-2">

@@ -7,15 +7,16 @@ import { Copy, Plus, Trash2 } from "lucide-react";
 import { formatAbsolute, formatEditedLabel } from "@/lib/dates";
 import type { RoomSummary } from "@/lib/types";
 import BrandedHeader from "./BrandedHeader";
+import LocalTime from "./LocalTime";
 
 type Props = {
   initialRooms: RoomSummary[];
-  lastUpdatedLabel: string;
+  platformUpdatedAt: string;
 };
 
 export default function RoomListPage({
   initialRooms,
-  lastUpdatedLabel,
+  platformUpdatedAt,
 }: Props) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -87,7 +88,8 @@ export default function RoomListPage({
             </span>
             <span aria-hidden="true">·</span>
             <span title="Commit time of the currently deployed build">
-              Platform updated {lastUpdatedLabel}
+              Platform updated{" "}
+              <LocalTime iso={platformUpdatedAt} />
             </span>
           </div>
         </header>

@@ -170,10 +170,10 @@ export function useRoomAutosave({
         // Stale response — a newer save superseded this one.
         if (gen !== saveGen.current) return;
 
-        const savedRoom = data?.room ?? toSave;
-        lastSavedFp.current = roomFingerprint(savedRoom);
+        // Fingerprint of what we actually persisted — not the live room,
+        // which may have newer edits (eye line, moves) made mid-save.
+        lastSavedFp.current = fp;
         if (data?.room) {
-          roomRef.current = data.room;
           onRoomNormalizedRef.current?.(data.room);
         }
         retryDelay.current = RETRY_BASE_MS;
@@ -185,6 +185,11 @@ export function useRoomAutosave({
         );
         void clearDraft(roomId);
         onSavedRef.current?.(data?.updatedAt ?? new Date().toISOString());
+
+        // If the user edited while this save was in flight, queue another.
+        if (roomFingerprint(roomRef.current) !== fp) {
+          pendingAfterFlight.current = true;
+        }
       } catch (e) {
         if (gen !== saveGen.current) return;
         console.error("Save failed", e);

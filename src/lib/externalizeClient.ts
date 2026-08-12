@@ -16,30 +16,46 @@ export function roomExceedsPatchLimit(room: Room): boolean {
  * after images have been moved to Storage.
  */
 export function preferStoredImages(draft: Room, server: Room): Room {
-  const byId = new Map(server.items.map((it) => [it.id, it]));
-  return {
-    ...draft,
-    items: draft.items.map((it) => {
-      const src = byId.get(it.id);
-      if (!src) return it;
-      return mergeItemImages(it, src);
-    }),
-  };
+  return mergeStoredImageUrls(draft, server);
 }
 
-function mergeItemImages(draft: Item, server: Item): Item {
+/**
+ * Copy Storage https URLs from `from` onto matching items in `into` when
+ * `into` still has data: URLs. Preserves all other fields on `into`
+ * (positions, eye line, etc.) so concurrent edits aren't clobbered.
+ */
+export function mergeStoredImageUrls(into: Room, from: Room): Room {
+  const byId = new Map(from.items.map((it) => [it.id, it]));
+  let changed = false;
+  const items = into.items.map((it) => {
+    const src = byId.get(it.id);
+    if (!src) return it;
+    return mergeItemImages(it, src, () => {
+      changed = true;
+    });
+  });
+  return changed ? { ...into, items } : into;
+}
+
+function mergeItemImages(
+  draft: Item,
+  server: Item,
+  onChange?: () => void,
+): Item {
   let next = draft;
   if (
     draft.imageDataUrl.startsWith("data:") &&
     server.imageDataUrl.startsWith("http")
   ) {
     next = { ...next, imageDataUrl: server.imageDataUrl };
+    onChange?.();
   }
   if (
     draft.imageOriginalDataUrl?.startsWith("data:") &&
     server.imageOriginalDataUrl?.startsWith("http")
   ) {
     next = { ...next, imageOriginalDataUrl: server.imageOriginalDataUrl };
+    onChange?.();
   }
   return next;
 }

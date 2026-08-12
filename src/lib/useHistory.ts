@@ -24,6 +24,8 @@ export type UseHistoryReturn<T> = {
   state: T;
   /** Replaces the present state and pushes the prior present to the undo stack (with coalescing). */
   setState: (next: Updater<T>) => void;
+  /** Update present without touching undo/redo (e.g. swapping data URLs for Storage URLs). */
+  setStateSilent: (next: Updater<T>) => void;
   /** Hard-reset present and clear undo/redo (e.g. restoring a crash draft). */
   replaceState: (next: T) => void;
   undo: () => void;
@@ -56,6 +58,15 @@ export function useHistory<T>(initial: T): UseHistoryReturn<T> {
         ? f.past
         : [...f.past, f.present].slice(-MAX_STACK);
       return { past, present: nextVal, future: [] };
+    });
+  }, []);
+
+  const setStateSilent = useCallback((next: Updater<T>) => {
+    setFrame((f) => {
+      const nextVal =
+        typeof next === "function" ? (next as (p: T) => T)(f.present) : next;
+      if (Object.is(nextVal, f.present)) return f;
+      return { ...f, present: nextVal };
     });
   }, []);
 
@@ -93,6 +104,7 @@ export function useHistory<T>(initial: T): UseHistoryReturn<T> {
   return {
     state: frame.present,
     setState,
+    setStateSilent,
     replaceState,
     undo,
     redo,

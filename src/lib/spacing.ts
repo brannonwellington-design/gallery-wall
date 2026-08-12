@@ -22,15 +22,18 @@ const OVERLAP_EPS = 0.5; // mm — treat as overlapping on the cross-axis
  * Build red-line spacing segments: nearest gaps between items, and each
  * item's clearance to the wall edges (only when the wall is the nearest
  * obstacle in that direction).
+ *
+ * Items that sit outside the wall bounds are ignored entirely.
  */
 export function computeSpacingSegments(
   items: NamedRect[],
   wall: { width: number; height: number },
 ): SpacingSegment[] {
   const segs: SpacingSegment[] = [];
-  if (items.length === 0) return segs;
+  const onWall = items.filter((it) => isFullyOnWall(it, wall));
+  if (onWall.length === 0) return segs;
 
-  for (const a of items) {
+  for (const a of onWall) {
     const aRight = a.x + a.width;
     const aBottom = a.y + a.height;
     const aCy = a.y + a.height / 2;
@@ -39,7 +42,7 @@ export function computeSpacingSegments(
     // --- Left (toward x=0) ---
     {
       let best: { x: number; id: string | null } = { x: 0, id: null };
-      for (const b of items) {
+      for (const b of onWall) {
         if (b.id === a.id) continue;
         if (!rangesOverlap(a.y, aBottom, b.y, b.y + b.height)) continue;
         const bRight = b.x + b.width;
@@ -67,7 +70,7 @@ export function computeSpacingSegments(
         x: wall.width,
         id: null,
       };
-      for (const b of items) {
+      for (const b of onWall) {
         if (b.id === a.id) continue;
         if (!rangesOverlap(a.y, aBottom, b.y, b.y + b.height)) continue;
         if (b.x >= aRight - OVERLAP_EPS && b.x < best.x) {
@@ -91,7 +94,7 @@ export function computeSpacingSegments(
     // --- Top (toward y=0) ---
     {
       let best: { y: number; id: string | null } = { y: 0, id: null };
-      for (const b of items) {
+      for (const b of onWall) {
         if (b.id === a.id) continue;
         if (!rangesOverlap(a.x, aRight, b.x, b.x + b.width)) continue;
         const bBottom = b.y + b.height;
@@ -119,7 +122,7 @@ export function computeSpacingSegments(
         y: wall.height,
         id: null,
       };
-      for (const b of items) {
+      for (const b of onWall) {
         if (b.id === a.id) continue;
         if (!rangesOverlap(a.x, aRight, b.x, b.x + b.width)) continue;
         if (b.y >= aBottom - OVERLAP_EPS && b.y < best.y) {
@@ -142,6 +145,19 @@ export function computeSpacingSegments(
   }
 
   return dedupeSegments(segs);
+}
+
+/** True when the piece's full bounding box sits inside the wall. */
+function isFullyOnWall(
+  rect: NamedRect,
+  wall: { width: number; height: number },
+): boolean {
+  return (
+    rect.x >= -OVERLAP_EPS &&
+    rect.y >= -OVERLAP_EPS &&
+    rect.x + rect.width <= wall.width + OVERLAP_EPS &&
+    rect.y + rect.height <= wall.height + OVERLAP_EPS
+  );
 }
 
 function rangesOverlap(a0: number, a1: number, b0: number, b1: number): boolean {

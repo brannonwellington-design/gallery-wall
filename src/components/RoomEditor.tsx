@@ -9,6 +9,7 @@ import { cropToOpaqueBounds, downscaleTransparentImage } from "@/lib/image";
 import { randomizeLayout } from "@/lib/layout";
 import { clearDraft, loadDraft } from "@/lib/roomDraft";
 import {
+  mergeStoredImageUrls,
   preferStoredImages,
   roomExceedsPatchLimit,
 } from "@/lib/externalizeClient";
@@ -48,6 +49,7 @@ export default function RoomEditor({
   const {
     state: room,
     setState: setRoom,
+    setStateSilent,
     replaceState,
     undo,
     redo,
@@ -65,15 +67,14 @@ export default function RoomEditor({
     setUpdatedAt(iso);
   }, []);
 
-  const markSavedRef = useRef<((r: Room) => void) | null>(null);
-
   const onRoomNormalized = useCallback(
     (normalized: Room) => {
-      // Swap data URLs for Storage URLs without creating an undo step.
-      replaceState(normalized);
-      markSavedRef.current?.(normalized);
+      // Only swap data: image URLs → Storage https URLs. Keep the live
+      // room's layout/eye-line/etc. so an in-flight save can't clobber
+      // edits the user made while it was uploading.
+      setStateSilent((current) => mergeStoredImageUrls(current, normalized));
     },
-    [replaceState],
+    [setStateSilent],
   );
 
   const { saveStatus, saveError, retrySave, markSaved } = useRoomAutosave({
@@ -83,10 +84,6 @@ export default function RoomEditor({
     onSaved,
     onRoomNormalized,
   });
-
-  useEffect(() => {
-    markSavedRef.current = markSaved;
-  }, [markSaved]);
 
   // Crash recovery: restore a newer local draft before enabling autosave.
   useEffect(() => {

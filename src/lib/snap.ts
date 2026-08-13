@@ -174,9 +174,10 @@ export function computeSnap(input: SnapInput): SnapResult {
       const targetX = A.x + A.width + gap;
       candidatesX.push({
         pos: targetX,
-        guideAt: targetX, // not used as a single line for equal-spacing
+        guideAt: targetX,
         reason: "equal-spacing",
-        span: spanY(A, B, dragged),
+        // Span the open gap between A and B (x-axis).
+        span: [A.x + A.width, B.x],
       });
     }
   }
@@ -196,10 +197,26 @@ export function computeSnap(input: SnapInput): SnapResult {
         pos: targetY,
         guideAt: targetY,
         reason: "equal-spacing",
-        span: spanX(A, B, dragged),
+        span: [A.y + A.height, B.y],
       });
     }
   }
+
+  // --- Repeat existing row/column gaps outside a pair ---
+  // If A|—10"—|B already exist in a row, dragging C next to B snaps when
+  // C is also 10" from B (same idea for columns).
+  pushRepeatedGapCandidates({
+    axis: "x",
+    dragged,
+    others,
+    candidates: candidatesX,
+  });
+  pushRepeatedGapCandidates({
+    axis: "y",
+    dragged,
+    others,
+    candidates: candidatesY,
+  });
 
   // --- Pick the nearest candidate per axis (within threshold) ---
   const bestX = pickBest(candidatesX, dragged.x, threshold);
@@ -279,6 +296,122 @@ function pickBest(
     }
   }
   return best;
+}
+
+const GAP_EPS = 0.5; // mm — ignore touching / overlapping "gaps"
+
+/**
+ * For items aligned with the dragged piece in a row (axis=x) or column
+ * (axis=y), collect adjacent neighbor gaps and offer those same distances
+ * as snap positions on either side of each aligned item.
+ */
+function pushRepeatedGapCandidates(args: {
+  axis: "x" | "y";
+  dragged: Rect;
+  others: Rect[];
+  candidates: Candidate[];
+}): void {
+  const { axis, dragged, others, candidates } = args;
+  const aligned =
+    axis === "x"
+      ? others.filter((o) => roughlyAlignedY(o, dragged))
+      : others.filter((o) => roughlyAlignedX(o, dragged));
+  if (aligned.length < 2) return;
+
+  const gaps = adjacentGaps(aligned, axis);
+  if (gaps.length === 0) return;
+
+  for (const other of aligned) {
+    for (const gap of gaps) {
+      if (axis === "x") {
+        // Place dragged to the right of `other` with this gap.
+        const rightPos = other.x + other.width + gap;
+        candidates.push({
+          pos: rightPos,
+          guideAt: other.x + other.width + gap / 2,
+          reason: "equal-spacing",
+          span: [other.x + other.width, rightPos],
+        });
+        // Place dragged to the left of `other` with this gap.
+        const leftPos = other.x - gap - dragged.width;
+        candidates.push({
+          pos: leftPos,
+          guideAt: other.x - gap / 2,
+          reason: "equal-spacing",
+          span: [leftPos + dragged.width, other.x],
+        });
+      } else {
+        const belowPos = other.y + other.height + gap;
+        candidates.push({
+          pos: belowPos,
+          guideAt: other.y + other.height + gap / 2,
+          reason: "equal-spacing",
+          span: [other.y + other.height, belowPos],
+        });
+        const abovePos = other.y - gap - dragged.height;
+        candidates.push({
+          pos: abovePos,
+          guideAt: other.y - gap / 2,
+          reason: "equal-spacing",
+          span: [abovePos + dragged.height, other.y],
+        });
+      }
+    }
+  }
+}
+
+/** Adjacent edge-to-edge gaps along an axis, among items sorted on that axis. */
+function adjacentGaps(items: Rect[], axis: "x" | "y"): number[] {
+  const sorted = [...items].sort((a, b) =>
+    axis === "x" ? a.x - b.x : a.y - b.y,
+  );
+  const gaps: number[] = [];
+  for (let i = 0; i < sorted.length - 1; i++) {
+    const a = sorted[i];
+    const b = sorted[i + 1];
+    const gap =
+      axis === "x"
+        ? b.x - (a.x + a.width)
+        : b.y - (a.y + a.height);
+    if (gap > GAP_EPS) gaps.push(gap);
+  }
+  return uniqueGaps(gaps);
+}
+
+/** Collapse near-identical gaps (floating noise) into one preset each. */
+function uniqueGaps(gaps: number[]): number[] {
+  const sorted = [...gaps].sort((a, b) => a - b);
+  const out: number[] = [];
+  for (const g of sorted) {
+    if (out.length === 0 || Math.abs(g - out[out.length - 1]) > 1) {
+      out.push(g);
+    }
+  }
+  return out;
+}
+
+/**
+ * Same row: vertical ranges overlap, or centers are close enough that the
+ * user is clearly dragging into that row (before full overlap).
+ */
+function roughlyAlignedY(a: Rect, b: Rect): boolean {
+  if (yOverlap(a, b)) return true;
+  const slack = Math.min(a.height, b.height) * 0.5;
+  return Math.abs(centerY(a) - centerY(b)) <= slack;
+}
+
+function roughlyAlignedX(a: Rect, b: Rect): boolean {
+  if (xOverlap(a, b)) return true;
+  const slack = Math.min(a.width, b.width) * 0.5;
+  return Math.abs(centerX(a) - centerX(b)) <= slack;
+}
+
+function centerX(r: Rect): number {
+  return r.x + r.width / 2;
+}
+
+function centerY(r: Rect): number {
+  return r.y + r.height / 2;
 }
 
 function xOverlap(a: Rect, b: Rect): boolean {

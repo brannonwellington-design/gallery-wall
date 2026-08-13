@@ -112,14 +112,19 @@ const WallCanvas = forwardRef<Konva.Stage, Props>(function WallCanvas(
 
   const eyeLineEnabled = room.eyeLineEnabled ?? true;
   const eyeLineHeight = room.eyeLineHeight ?? DEFAULT_EYE_LINE_HEIGHT_MM;
-  // Eye-line stored as height from FLOOR; in wall coords (y grows down) it
-  // lives at (wallHeight - eyeLineHeight). Only valid when within the wall.
-  const eyeLineY =
-    eyeLineEnabled &&
-    eyeLineHeight > 0 &&
-    eyeLineHeight < room.wallHeight
-      ? room.wallHeight - eyeLineHeight
-      : null;
+  // Eye-line is height from FLOOR; wall y grows down from the top.
+  // If the requested height is taller than the wall (common on short
+  // feature walls), clamp onto the wall so the guide still appears.
+  const eyeLineY = (() => {
+    if (!eyeLineEnabled || !(eyeLineHeight > 0) || !(room.wallHeight > 0)) {
+      return null;
+    }
+    const fromTop = room.wallHeight - eyeLineHeight;
+    return Math.max(0, Math.min(fromTop, room.wallHeight));
+  })();
+  const eyeLineClamped =
+    eyeLineY != null &&
+    (eyeLineHeight >= room.wallHeight || eyeLineHeight <= 0);
 
   // Build a per-item dragBoundFunc that snaps in mm and returns absolute
   // stage coords for Konva to use as the new node position.
@@ -218,32 +223,6 @@ const WallCanvas = forwardRef<Konva.Stage, Props>(function WallCanvas(
               stroke="#B6B4AF"
               strokeWidth={1}
             />
-            {eyeLineY != null && (
-              <>
-                <Line
-                  points={[
-                    offsetX,
-                    offsetY + eyeLineY * scale,
-                    offsetX + wallPxW,
-                    offsetY + eyeLineY * scale,
-                  ]}
-                  stroke="#E5A119"
-                  strokeWidth={1}
-                  dash={[6, 4]}
-                  opacity={0.6}
-                  listening={false}
-                />
-                <Text
-                  text={`eye ${formatLength(eyeLineHeight, room.unit, 1)}`}
-                  x={offsetX + wallPxW + 6}
-                  y={offsetY + eyeLineY * scale - 7}
-                  fontSize={10}
-                  fontFamily="Inter, sans-serif"
-                  fill="#B88114"
-                  listening={false}
-                />
-              </>
-            )}
           </Layer>
 
           {/* Items (positioned relative to wall origin) */}
@@ -276,6 +255,36 @@ const WallCanvas = forwardRef<Konva.Stage, Props>(function WallCanvas(
               />
             ))}
           </Layer>
+
+          {/* Eye line above art so the toggle is always obvious */}
+          {eyeLineY != null && (
+            <Layer listening={false}>
+              <Line
+                points={[
+                  offsetX,
+                  offsetY + eyeLineY * scale,
+                  offsetX + wallPxW,
+                  offsetY + eyeLineY * scale,
+                ]}
+                stroke="#E5A119"
+                strokeWidth={2}
+                dash={[8, 5]}
+                opacity={0.95}
+              />
+              <Text
+                text={
+                  eyeLineClamped
+                    ? `eye ${formatLength(eyeLineHeight, room.unit, 1)} (clamped to wall)`
+                    : `eye ${formatLength(eyeLineHeight, room.unit, 1)}`
+                }
+                x={offsetX + wallPxW + 6}
+                y={offsetY + eyeLineY * scale - 7}
+                fontSize={11}
+                fontFamily="Inter, sans-serif"
+                fill="#B88114"
+              />
+            </Layer>
+          )}
 
           {/* Guides + measurements (top, non-interactive) */}
           <Layer x={offsetX} y={offsetY} listening={false}>

@@ -187,11 +187,14 @@ export default function RoomEditor({
       const eyeLineEnabled = r.eyeLineEnabled ?? true;
       const eyeLineHeight = r.eyeLineHeight ?? DEFAULT_EYE_LINE_HEIGHT_MM;
       // Eye line is stored as distance from floor; layout engine wants
-      // y from the top of the wall.
-      const eyeLineY =
-        eyeLineEnabled && eyeLineHeight > 0 && eyeLineHeight < r.wallHeight
-          ? r.wallHeight - eyeLineHeight
-          : null;
+      // y from the top of the wall. Clamp onto the wall when the
+      // requested height is taller than the wall itself.
+      const eyeLineY = (() => {
+        if (!eyeLineEnabled || !(eyeLineHeight > 0) || !(r.wallHeight > 0)) {
+          return null;
+        }
+        return Math.max(0, Math.min(r.wallHeight - eyeLineHeight, r.wallHeight));
+      })();
       const result = randomizeLayout(
         r.items,
         { width: r.wallWidth, height: r.wallHeight },

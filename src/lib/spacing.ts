@@ -19,11 +19,14 @@ type NamedRect = SnapRect & { id: string };
 const OVERLAP_EPS = 0.5; // mm — treat as overlapping on the cross-axis
 
 /**
- * Build red-line spacing segments: nearest gaps between items, and each
- * item's clearance to the wall edges (only when the wall is the nearest
- * obstacle in that direction).
+ * Build red-line spacing segments for on-wall pieces only.
  *
- * Items that sit outside the wall bounds are ignored entirely.
+ * Each gap is emitted once:
+ * - Item↔item: only measured looking right / down (so A→B isn't also B→A)
+ * - Item↔wall: clearance on each side when the wall is the nearest obstacle
+ *
+ * Dimension lines between items sit on the midline of their overlap so
+ * stacked/side-by-side pairs don't spawn parallel copies at each center.
  */
 export function computeSpacingSegments(
   items: NamedRect[],
@@ -39,112 +42,177 @@ export function computeSpacingSegments(
     const aCy = a.y + a.height / 2;
     const aCx = a.x + a.width / 2;
 
-    // --- Left (toward x=0) ---
+    // --- Left wall clearance (skip if another item is nearer) ---
     {
-      let best: { x: number; id: string | null } = { x: 0, id: null };
-      for (const b of onWall) {
-        if (b.id === a.id) continue;
-        if (!rangesOverlap(a.y, aBottom, b.y, b.y + b.height)) continue;
-        const bRight = b.x + b.width;
-        if (bRight <= a.x + OVERLAP_EPS && bRight > best.x) {
-          best = { x: bRight, id: b.id };
-        }
-      }
-      const distance = a.x - best.x;
-      if (distance > OVERLAP_EPS) {
+      const neighbor = nearestLeft(a, onWall);
+      if (!neighbor && a.x > OVERLAP_EPS) {
         segs.push({
           kind: "h",
-          x0: best.x,
+          x0: 0,
           y0: aCy,
           x1: a.x,
           y1: aCy,
-          distance,
-          between: best.id ? "items" : "wall",
+          distance: a.x,
+          between: "wall",
         });
       }
     }
 
-    // --- Right (toward wall.width) ---
+    // --- Right: item gap (once) or wall clearance ---
     {
-      let best: { x: number; id: string | null } = {
-        x: wall.width,
-        id: null,
-      };
-      for (const b of onWall) {
-        if (b.id === a.id) continue;
-        if (!rangesOverlap(a.y, aBottom, b.y, b.y + b.height)) continue;
-        if (b.x >= aRight - OVERLAP_EPS && b.x < best.x) {
-          best = { x: b.x, id: b.id };
+      const neighbor = nearestRight(a, onWall);
+      if (neighbor) {
+        const distance = neighbor.x - aRight;
+        if (distance > OVERLAP_EPS) {
+          const y = overlapMid(a.y, aBottom, neighbor.y, neighbor.y + neighbor.height);
+          segs.push({
+            kind: "h",
+            x0: aRight,
+            y0: y,
+            x1: neighbor.x,
+            y1: y,
+            distance,
+            between: "items",
+          });
         }
-      }
-      const distance = best.x - aRight;
-      if (distance > OVERLAP_EPS) {
-        segs.push({
-          kind: "h",
-          x0: aRight,
-          y0: aCy,
-          x1: best.x,
-          y1: aCy,
-          distance,
-          between: best.id ? "items" : "wall",
-        });
+      } else {
+        const distance = wall.width - aRight;
+        if (distance > OVERLAP_EPS) {
+          segs.push({
+            kind: "h",
+            x0: aRight,
+            y0: aCy,
+            x1: wall.width,
+            y1: aCy,
+            distance,
+            between: "wall",
+          });
+        }
       }
     }
 
-    // --- Top (toward y=0) ---
+    // --- Top wall clearance ---
     {
-      let best: { y: number; id: string | null } = { y: 0, id: null };
-      for (const b of onWall) {
-        if (b.id === a.id) continue;
-        if (!rangesOverlap(a.x, aRight, b.x, b.x + b.width)) continue;
-        const bBottom = b.y + b.height;
-        if (bBottom <= a.y + OVERLAP_EPS && bBottom > best.y) {
-          best = { y: bBottom, id: b.id };
-        }
-      }
-      const distance = a.y - best.y;
-      if (distance > OVERLAP_EPS) {
+      const neighbor = nearestAbove(a, onWall);
+      if (!neighbor && a.y > OVERLAP_EPS) {
         segs.push({
           kind: "v",
           x0: aCx,
-          y0: best.y,
+          y0: 0,
           x1: aCx,
           y1: a.y,
-          distance,
-          between: best.id ? "items" : "wall",
+          distance: a.y,
+          between: "wall",
         });
       }
     }
 
-    // --- Bottom (toward wall.height) ---
+    // --- Bottom: item gap (once) or wall clearance ---
     {
-      let best: { y: number; id: string | null } = {
-        y: wall.height,
-        id: null,
-      };
-      for (const b of onWall) {
-        if (b.id === a.id) continue;
-        if (!rangesOverlap(a.x, aRight, b.x, b.x + b.width)) continue;
-        if (b.y >= aBottom - OVERLAP_EPS && b.y < best.y) {
-          best = { y: b.y, id: b.id };
+      const neighbor = nearestBelow(a, onWall);
+      if (neighbor) {
+        const distance = neighbor.y - aBottom;
+        if (distance > OVERLAP_EPS) {
+          const x = overlapMid(a.x, aRight, neighbor.x, neighbor.x + neighbor.width);
+          segs.push({
+            kind: "v",
+            x0: x,
+            y0: aBottom,
+            x1: x,
+            y1: neighbor.y,
+            distance,
+            between: "items",
+          });
         }
-      }
-      const distance = best.y - aBottom;
-      if (distance > OVERLAP_EPS) {
-        segs.push({
-          kind: "v",
-          x0: aCx,
-          y0: aBottom,
-          x1: aCx,
-          y1: best.y,
-          distance,
-          between: best.id ? "items" : "wall",
-        });
+      } else {
+        const distance = wall.height - aBottom;
+        if (distance > OVERLAP_EPS) {
+          segs.push({
+            kind: "v",
+            x0: aCx,
+            y0: aBottom,
+            x1: aCx,
+            y1: wall.height,
+            distance,
+            between: "wall",
+          });
+        }
       }
     }
   }
 
-  return dedupeSegments(segs);
+  return segs;
+}
+
+function nearestLeft(a: NamedRect, others: NamedRect[]): NamedRect | null {
+  let best: NamedRect | null = null;
+  let bestRight = -Infinity;
+  const aBottom = a.y + a.height;
+  for (const b of others) {
+    if (b.id === a.id) continue;
+    if (!rangesOverlap(a.y, aBottom, b.y, b.y + b.height)) continue;
+    const bRight = b.x + b.width;
+    if (bRight <= a.x + OVERLAP_EPS && bRight > bestRight) {
+      best = b;
+      bestRight = bRight;
+    }
+  }
+  return best;
+}
+
+function nearestRight(a: NamedRect, others: NamedRect[]): NamedRect | null {
+  let best: NamedRect | null = null;
+  let bestX = Infinity;
+  const aRight = a.x + a.width;
+  const aBottom = a.y + a.height;
+  for (const b of others) {
+    if (b.id === a.id) continue;
+    if (!rangesOverlap(a.y, aBottom, b.y, b.y + b.height)) continue;
+    if (b.x >= aRight - OVERLAP_EPS && b.x < bestX) {
+      best = b;
+      bestX = b.x;
+    }
+  }
+  return best;
+}
+
+function nearestAbove(a: NamedRect, others: NamedRect[]): NamedRect | null {
+  let best: NamedRect | null = null;
+  let bestBottom = -Infinity;
+  const aRight = a.x + a.width;
+  for (const b of others) {
+    if (b.id === a.id) continue;
+    if (!rangesOverlap(a.x, aRight, b.x, b.x + b.width)) continue;
+    const bBottom = b.y + b.height;
+    if (bBottom <= a.y + OVERLAP_EPS && bBottom > bestBottom) {
+      best = b;
+      bestBottom = bBottom;
+    }
+  }
+  return best;
+}
+
+function nearestBelow(a: NamedRect, others: NamedRect[]): NamedRect | null {
+  let best: NamedRect | null = null;
+  let bestY = Infinity;
+  const aRight = a.x + a.width;
+  const aBottom = a.y + a.height;
+  for (const b of others) {
+    if (b.id === a.id) continue;
+    if (!rangesOverlap(a.x, aRight, b.x, b.x + b.width)) continue;
+    if (b.y >= aBottom - OVERLAP_EPS && b.y < bestY) {
+      best = b;
+      bestY = b.y;
+    }
+  }
+  return best;
+}
+
+/** Midpoint of the overlapping span on one axis. */
+function overlapMid(a0: number, a1: number, b0: number, b1: number): number {
+  const lo = Math.max(a0, b0);
+  const hi = Math.min(a1, b1);
+  return (lo + hi) / 2;
 }
 
 /** True when the piece's full bounding box sits inside the wall. */
@@ -162,26 +230,4 @@ function isFullyOnWall(
 
 function rangesOverlap(a0: number, a1: number, b0: number, b1: number): boolean {
   return a0 < b1 - OVERLAP_EPS && b0 < a1 - OVERLAP_EPS;
-}
-
-/** Item-to-item gaps are found twice (once from each side) — keep one. */
-function dedupeSegments(segs: SpacingSegment[]): SpacingSegment[] {
-  const seen = new Set<string>();
-  const out: SpacingSegment[] = [];
-  for (const s of segs) {
-    const key =
-      s.between === "wall"
-        ? `${s.kind}:${round(s.x0)}:${round(s.y0)}:${round(s.x1)}:${round(s.y1)}`
-        : s.kind === "h"
-          ? `h:${round(Math.min(s.x0, s.x1))}:${round(Math.max(s.x0, s.x1))}:${round(s.y0)}`
-          : `v:${round(Math.min(s.y0, s.y1))}:${round(Math.max(s.y0, s.y1))}:${round(s.x0)}`;
-    if (seen.has(key)) continue;
-    seen.add(key);
-    out.push(s);
-  }
-  return out;
-}
-
-function round(n: number): number {
-  return Math.round(n * 10) / 10;
 }

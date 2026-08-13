@@ -6,7 +6,6 @@ import { ArrowLeft, Download, FileDown, Redo2, Shuffle, Trash2, Undo2 } from "lu
 import { formatAbsolute, formatEditedLabel } from "@/lib/dates";
 import type { Unit } from "@/lib/types";
 import { fromMm, toMm } from "@/lib/units";
-import BrandedHeader from "./BrandedHeader";
 
 export type SaveStatus = "idle" | "unsaved" | "saving" | "saved" | "error";
 
@@ -109,73 +108,107 @@ export default function Toolbar({
   }
 
   return (
-    <>
-      <BrandedHeader title={roomName || "Untitled Room"} variant="inline" />
-
-      {/* Toolbar groups separated by whitespace, not hairlines. ThemeToggle
-          lives above this row (y=16-48); toolbar starts at y=56 — no overlap. */}
-      <header className="flex items-center gap-3 px-6 py-3 border-b border-surface-tertiary bg-surface-primary">
+    <header className="border-b border-surface-tertiary bg-surface-primary">
+      {/* Identity + file. pr-14 clears the fixed ThemeToggle (top-4 right-4). */}
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-2 px-6 py-2 pr-14">
         <Link
           href="/"
-          className="inline-flex items-center gap-1 h-8 px-2 -ml-2 rounded-md text-[12px] leading-4 text-content-primary hover:bg-surface-secondary"
+          className="inline-flex items-center gap-1 h-8 px-2 -ml-2 rounded-lg text-[12px] leading-4 text-content-primary hover:bg-surface-secondary"
           title="Back to rooms"
         >
-          <ArrowLeft size={14} strokeWidth={1.25} aria-hidden="true" />
+          <ArrowLeft size={14} strokeWidth={1} aria-hidden="true" />
           Rooms
         </Link>
 
-        <input
-          type="text"
-          value={nameInput}
-          onChange={(e) => setNameInput(e.target.value)}
-          onBlur={commitName}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") (e.target as HTMLInputElement).blur();
-          }}
-          className="h-8 px-2 text-[16px] leading-6 text-content-primary bg-transparent border border-transparent hover:border-surface-tertiary focus:border-content-disabled rounded-md min-w-0 flex-shrink"
-          aria-label="Room name"
-        />
-
-        <SaveIndicator
-          status={saveStatus}
-          error={saveError}
-          onRetry={onRetrySave}
-        />
-        {lastEditedAt && (
-          <span
-            className="text-[11px] leading-4 text-content-disabled tabular hidden sm:inline"
-            title={formatAbsolute(lastEditedAt)}
-          >
-            {formatEditedLabel(lastEditedAt)}
+        <div className="flex items-center gap-2 min-w-0">
+          <span className="text-[12px] leading-4 text-content-secondary shrink-0 select-none">
+            Listen Labs /
           </span>
-        )}
+          <input
+            type="text"
+            value={nameInput}
+            onChange={(e) => setNameInput(e.target.value)}
+            onBlur={commitName}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+            }}
+            className="h-8 px-2 text-[16px] leading-6 text-content-primary bg-transparent border border-transparent hover:border-surface-tertiary focus:border-content-disabled rounded-lg min-w-0 w-48"
+            aria-label="Room name"
+          />
+        </div>
 
-        <div className="flex items-center gap-2 ml-4">
+        <div className="flex items-center gap-2 min-w-0">
+          <SaveIndicator
+            status={saveStatus}
+            error={saveError}
+            onRetry={onRetrySave}
+          />
+          {lastEditedAt ? (
+            <span
+              className="text-[11px] leading-4 text-content-disabled tabular hidden sm:inline"
+              title={formatAbsolute(lastEditedAt)}
+            >
+              {formatEditedLabel(lastEditedAt)}
+            </span>
+          ) : null}
+        </div>
+
+        <div className="flex-1 min-w-2" />
+
+        <div className="flex items-center gap-1">
+          <button
+            type="button"
+            onClick={onExportPNG}
+            className="inline-flex items-center gap-1 h-8 px-3 rounded-lg text-[12px] leading-4 text-content-primary hover:bg-surface-secondary"
+          >
+            <Download size={14} strokeWidth={1} aria-hidden="true" />
+            PNG
+          </button>
+          <button
+            type="button"
+            onClick={onExportPDF}
+            className="inline-flex items-center gap-1 h-8 px-3 rounded-lg text-[12px] leading-4 text-content-primary hover:bg-surface-secondary"
+          >
+            <FileDown size={14} strokeWidth={1} aria-hidden="true" />
+            PDF
+          </button>
+          <button
+            type="button"
+            onClick={onClear}
+            className="inline-flex items-center gap-1 h-8 px-3 rounded-lg text-[12px] leading-4 text-content-primary hover:text-content-negative hover:bg-surface-negative-secondary"
+            title="Clear wall"
+          >
+            <Trash2 size={14} strokeWidth={1} aria-hidden="true" />
+            Clear
+          </button>
+        </div>
+      </div>
+
+      {/* Wall, guides, layout — grouped by whitespace, not hairlines. */}
+      <div className="flex flex-wrap items-center gap-x-6 gap-y-2 px-6 py-2 bg-surface-highlight border-t border-surface-tertiary">
+        <div className="flex items-center gap-2">
           <span className="text-[10px] leading-4 text-content-disabled">Wall</span>
           <NumInput value={wInput} onChange={setWInput} onCommit={commitWall} ariaLabel="Wall width" />
           <span className="text-[12px] leading-4 text-content-disabled">×</span>
           <NumInput value={hInput} onChange={setHInput} onCommit={commitWall} ariaLabel="Wall height" />
+          <UnitToggle unit={unit} onChange={onChangeUnit} />
         </div>
 
-        <UnitToggle unit={unit} onChange={onChangeUnit} />
-
-        <ToggleButton
-          active={snapEnabled}
-          onClick={() => onChangeSnap(!snapEnabled)}
-          title="Toggle snap (hold Alt to disable while dragging)"
-        >
-          Snap
-        </ToggleButton>
-
-        <ToggleButton
-          active={redlinesEnabled}
-          onClick={() => onChangeRedlines(!redlinesEnabled)}
-          title="Show spacing between pieces and to the wall edges"
-        >
-          Redlines
-        </ToggleButton>
-
-        <div className="flex items-center gap-2 ml-2">
+        <div className="flex items-center gap-1">
+          <ToggleButton
+            active={snapEnabled}
+            onClick={() => onChangeSnap(!snapEnabled)}
+            title="Toggle snap (hold Alt to disable while dragging)"
+          >
+            Snap
+          </ToggleButton>
+          <ToggleButton
+            active={redlinesEnabled}
+            onClick={() => onChangeRedlines(!redlinesEnabled)}
+            title="Show spacing between pieces and to the wall edges"
+          >
+            Redlines
+          </ToggleButton>
           <ToggleButton
             active={eyeLineEnabled}
             onClick={() => onChangeEyeLineEnabled(!eyeLineEnabled)}
@@ -192,74 +225,52 @@ export default function Toolbar({
           />
         </div>
 
-        <button
-          type="button"
-          onClick={onRandomize}
-          className="inline-flex items-center gap-1 h-8 px-3 ml-2 rounded-md text-[12px] leading-4 text-content-primary hover:bg-surface-secondary"
-          title="Randomize layout — re-arrange unpinned pieces using a classic gallery pattern"
-        >
-          <Shuffle size={14} strokeWidth={1.25} aria-hidden="true" />
-          Randomize
-        </button>
-        {layoutStatus && (
-          <span
-            className="text-[10px] leading-4 text-content-secondary"
-            aria-live="polite"
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={onRandomize}
+            className="inline-flex items-center gap-1 h-8 px-3 rounded-lg text-[12px] leading-4 text-content-primary hover:bg-surface-secondary"
+            title="Randomize layout — re-arrange unpinned pieces using a classic gallery pattern"
           >
-            {layoutStatus}
-          </span>
-        )}
+            <Shuffle size={14} strokeWidth={1} aria-hidden="true" />
+            Randomize
+          </button>
+          {layoutStatus ? (
+            <span
+              className="text-[10px] leading-4 text-content-secondary"
+              aria-live="polite"
+            >
+              {layoutStatus}
+            </span>
+          ) : null}
+        </div>
 
-        <button
-          type="button"
-          onClick={onUndo}
-          disabled={!canUndo}
-          aria-label="Undo"
-          title="Undo (⌘Z)"
-          className="inline-flex items-center justify-center w-8 h-8 rounded-md text-content-primary hover:bg-surface-secondary disabled:text-content-disabled disabled:hover:bg-transparent disabled:cursor-not-allowed"
-        >
-          <Undo2 size={14} strokeWidth={1.25} aria-hidden="true" />
-        </button>
-        <button
-          type="button"
-          onClick={onRedo}
-          disabled={!canRedo}
-          aria-label="Redo"
-          title="Redo (⇧⌘Z)"
-          className="inline-flex items-center justify-center w-8 h-8 rounded-md text-content-primary hover:bg-surface-secondary disabled:text-content-disabled disabled:hover:bg-transparent disabled:cursor-not-allowed"
-        >
-          <Redo2 size={14} strokeWidth={1.25} aria-hidden="true" />
-        </button>
+        <div className="flex-1 min-w-2" />
 
-        <div className="flex-1" />
-
-        <button
-          type="button"
-          onClick={onExportPNG}
-          className="inline-flex items-center gap-1 h-8 px-3 rounded-md text-[12px] leading-4 text-content-primary hover:bg-surface-secondary"
-        >
-          <Download size={14} strokeWidth={1.25} aria-hidden="true" />
-          PNG
-        </button>
-        <button
-          type="button"
-          onClick={onExportPDF}
-          className="inline-flex items-center gap-1 h-8 px-3 rounded-md text-[12px] leading-4 text-content-primary hover:bg-surface-secondary"
-        >
-          <FileDown size={14} strokeWidth={1.25} aria-hidden="true" />
-          PDF
-        </button>
-        <button
-          type="button"
-          onClick={onClear}
-          className="inline-flex items-center gap-1 h-8 px-3 rounded-md text-[12px] leading-4 text-content-primary hover:text-content-negative hover:bg-surface-negative-secondary"
-          title="Clear wall"
-        >
-          <Trash2 size={14} strokeWidth={1.25} aria-hidden="true" />
-          Clear
-        </button>
-      </header>
-    </>
+        <div className="flex items-center">
+          <button
+            type="button"
+            onClick={onUndo}
+            disabled={!canUndo}
+            aria-label="Undo"
+            title="Undo (⌘Z)"
+            className="inline-flex items-center justify-center w-8 h-8 rounded-lg text-content-primary hover:bg-surface-secondary disabled:text-content-disabled disabled:hover:bg-transparent disabled:cursor-not-allowed"
+          >
+            <Undo2 size={14} strokeWidth={1} aria-hidden="true" />
+          </button>
+          <button
+            type="button"
+            onClick={onRedo}
+            disabled={!canRedo}
+            aria-label="Redo"
+            title="Redo (⇧⌘Z)"
+            className="inline-flex items-center justify-center w-8 h-8 rounded-lg text-content-primary hover:bg-surface-secondary disabled:text-content-disabled disabled:hover:bg-transparent disabled:cursor-not-allowed"
+          >
+            <Redo2 size={14} strokeWidth={1} aria-hidden="true" />
+          </button>
+        </div>
+      </div>
+    </header>
   );
 }
 
@@ -289,7 +300,7 @@ function NumInput({
       }}
       disabled={disabled}
       aria-label={ariaLabel}
-      className="w-16 h-8 px-2 border border-surface-tertiary rounded-md text-[14px] leading-5 text-content-primary bg-surface-primary tabular disabled:opacity-50"
+      className="w-16 h-8 px-2 border border-surface-tertiary rounded-lg text-[14px] leading-5 text-content-primary bg-surface-primary tabular disabled:opacity-50"
     />
   );
 }
@@ -302,7 +313,7 @@ function UnitToggle({
   onChange: (u: Unit) => void;
 }) {
   return (
-    <div className="flex items-center h-8 border border-surface-tertiary rounded-md overflow-hidden">
+    <div className="flex items-center h-8 border border-surface-tertiary rounded-lg overflow-hidden">
       {(["in", "cm"] as const).map((u) => (
         <button
           key={u}
@@ -337,10 +348,10 @@ function ToggleButton({
       type="button"
       onClick={onClick}
       title={title}
-      className={`h-8 px-3 rounded-md text-[12px] leading-4 border ${
+      className={`h-8 px-3 rounded-lg text-[12px] leading-4 ${
         active
-          ? "bg-surface-brand-secondary border-surface-brand-secondary text-content-brand"
-          : "bg-surface-primary border-surface-tertiary text-content-secondary hover:text-content-primary"
+          ? "bg-surface-brand-secondary text-content-brand"
+          : "text-content-secondary hover:text-content-primary hover:bg-surface-secondary"
       }`}
     >
       {children}
@@ -389,7 +400,7 @@ function SaveIndicator({
       title={title}
     >
       <span>{text}</span>
-      {status === "error" && onRetry && (
+      {status === "error" && onRetry ? (
         <button
           type="button"
           onClick={onRetry}
@@ -397,7 +408,7 @@ function SaveIndicator({
         >
           Retry
         </button>
-      )}
+      ) : null}
     </span>
   );
 }

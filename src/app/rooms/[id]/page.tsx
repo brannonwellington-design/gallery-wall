@@ -3,6 +3,7 @@ import { externalizeRoomImages } from "@/lib/imageStore";
 import { getRepo } from "@/lib/repo";
 import RoomEditor from "@/components/RoomEditor";
 import BrandedHeader from "@/components/BrandedHeader";
+import { Button } from "@/components/ui/button";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -71,12 +72,9 @@ function ErrorScreen({ title, message }: { title: string; message: string }) {
         <p className="text-[16px] leading-6 text-content-secondary mb-6 max-w-[560px]">
           {message}
         </p>
-        <Link
-          href="/"
-          className="inline-flex items-center gap-1 h-8 px-4 rounded-lg bg-surface-brand-primary text-content-brand-contrast text-[14px] leading-5 hover:opacity-90"
-        >
-          Back to rooms
-        </Link>
+        <Button asChild>
+          <Link href="/">Back to rooms</Link>
+        </Button>
       </main>
     </div>
   );

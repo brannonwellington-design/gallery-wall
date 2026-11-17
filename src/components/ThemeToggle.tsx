@@ -2,6 +2,12 @@
 
 import { useEffect, useState } from "react";
 import { Moon, Sun } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 type Theme = "light" | "dark";
 
@@ -50,40 +56,39 @@ export default function ThemeToggle() {
   }
 
   const isDark = theme === "dark";
+  const label = mounted
+    ? `Switch to ${isDark ? "light" : "dark"} mode`
+    : "Toggle color mode";
+
   return (
-    <button
-      type="button"
-      onClick={toggle}
-      aria-label={
-        mounted
-          ? `Switch to ${isDark ? "light" : "dark"} mode`
-          : "Toggle color mode"
-      }
-      title={
-        mounted
-          ? `Switch to ${isDark ? "light" : "dark"} mode`
-          : "Toggle color mode"
-      }
-      aria-pressed={mounted ? isDark : undefined}
-      // top-4 + h-8 → icon vertical center at y=32, matching the
-      // BrandedHeader text center (top-6 + line-height-4 / 2 = 32).
-      // No container chrome — brand minimalism.
-      className="fixed top-4 right-4 z-40 inline-flex items-center justify-center w-8 h-8 text-content-secondary hover:text-content-primary"
-    >
-      {/* Both icons rendered; the inactive one is hidden. Prevents layout
-          shift and keeps the SSR markup stable regardless of theme. */}
-      <Sun
-        size={16}
-        strokeWidth={1.25}
-        aria-hidden="true"
-        className={isDark ? "hidden" : "block"}
-      />
-      <Moon
-        size={16}
-        strokeWidth={1.25}
-        aria-hidden="true"
-        className={isDark ? "block" : "hidden"}
-      />
-    </button>
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          onClick={toggle}
+          aria-label={label}
+          aria-pressed={mounted ? isDark : undefined}
+          // top-4 + h-8 → icon vertical center at y=32, matching the
+          // BrandedHeader text center (top-6 + line-height-4 / 2 = 32).
+          className="fixed top-4 right-4 z-40 text-content-secondary hover:text-content-primary"
+        >
+          <Sun
+            size={16}
+            strokeWidth={1.25}
+            aria-hidden="true"
+            className={isDark ? "hidden" : "block"}
+          />
+          <Moon
+            size={16}
+            strokeWidth={1.25}
+            aria-hidden="true"
+            className={isDark ? "block" : "hidden"}
+          />
+        </Button>
+      </TooltipTrigger>
+      <TooltipContent>{label}</TooltipContent>
+    </Tooltip>
   );
 }

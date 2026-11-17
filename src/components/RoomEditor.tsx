@@ -21,6 +21,17 @@ import AddItemForm from "./AddItemForm";
 import EditItemPanel from "./EditItemPanel";
 import ItemsList from "./ItemsList";
 import Toolbar from "./Toolbar";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { ScrollArea } from "@/components/ui/scroll-area";
 
 const WallCanvas = dynamic(() => import("./WallCanvas"), { ssr: false });
 
@@ -61,6 +72,7 @@ export default function RoomEditor({
   const [redlinesEnabled, setRedlinesEnabled] = useState(false);
   const [ready, setReady] = useState(false);
   const [updatedAt, setUpdatedAt] = useState(initialUpdatedAt);
+  const [clearOpen, setClearOpen] = useState(false);
   const stageRef = useRef<Konva.Stage | null>(null);
 
   const onSaved = useCallback((iso: string) => {
@@ -360,10 +372,14 @@ export default function RoomEditor({
     return () => window.removeEventListener("keydown", onKey);
   }, [selectedId, removeItem, room.unit, setRoom]);
 
-  function clearWall() {
-    if (!confirm("Remove all pieces from this wall?")) return;
+  function requestClearWall() {
+    setClearOpen(true);
+  }
+
+  function confirmClearWall() {
     setRoom((r) => ({ ...r, items: [] }));
     setSelectedId(null);
+    setClearOpen(false);
   }
 
   function exportPNG() {
@@ -423,11 +439,11 @@ export default function RoomEditor({
         onRedo={redo}
         onExportPNG={exportPNG}
         onExportPDF={exportPDF}
-        onClear={clearWall}
+        onClear={requestClearWall}
       />
 
       <div className="flex flex-1 min-h-0">
-        <aside className="w-80 border-r border-surface-tertiary bg-surface-highlight flex flex-col overflow-y-auto">
+        <aside className="w-80 border-r border-surface-tertiary bg-surface-highlight flex flex-col min-h-0">
           <div className="px-6 py-5 border-b border-surface-tertiary">
             <div className="text-[10px] leading-4 text-content-disabled mb-1">
               Catalog
@@ -436,31 +452,33 @@ export default function RoomEditor({
               Pieces
             </h2>
           </div>
-          <ItemsList
-            items={room.items}
-            unit={room.unit}
-            selectedId={selectedId}
-            bgBusyId={bgBusyId}
-            onSelect={setSelectedId}
-            onRemove={removeItem}
-            onToggleBackground={toggleBackground}
-            onTogglePin={togglePin}
-          />
-          {selectedId &&
-            (() => {
-              const selectedItem = room.items.find((i) => i.id === selectedId);
-              return selectedItem ? (
-                <EditItemPanel
-                  key={selectedItem.id}
-                  item={selectedItem}
-                  unit={room.unit}
-                  onUpdate={updateItem}
-                  onTogglePin={() => togglePin(selectedItem.id)}
-                  onClose={() => setSelectedId(null)}
-                />
-              ) : null;
-            })()}
-          <AddItemForm unit={room.unit} onAdd={addItem} />
+          <ScrollArea className="flex-1 min-h-0">
+            <ItemsList
+              items={room.items}
+              unit={room.unit}
+              selectedId={selectedId}
+              bgBusyId={bgBusyId}
+              onSelect={setSelectedId}
+              onRemove={removeItem}
+              onToggleBackground={toggleBackground}
+              onTogglePin={togglePin}
+            />
+            {selectedId &&
+              (() => {
+                const selectedItem = room.items.find((i) => i.id === selectedId);
+                return selectedItem ? (
+                  <EditItemPanel
+                    key={selectedItem.id}
+                    item={selectedItem}
+                    unit={room.unit}
+                    onUpdate={updateItem}
+                    onTogglePin={() => togglePin(selectedItem.id)}
+                    onClose={() => setSelectedId(null)}
+                  />
+                ) : null;
+              })()}
+            <AddItemForm unit={room.unit} onAdd={addItem} />
+          </ScrollArea>
         </aside>
 
         <main className="flex-1 min-w-0">
@@ -475,6 +493,23 @@ export default function RoomEditor({
           />
         </main>
       </div>
+
+      <AlertDialog open={clearOpen} onOpenChange={setClearOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Clear wall</AlertDialogTitle>
+            <AlertDialogDescription>
+              Remove all pieces from this wall?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction variant="destructive" onClick={confirmClearWall}>
+              Clear
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

@@ -6,6 +6,16 @@ import { ArrowLeft, Download, FileDown, Redo2, Shuffle, Trash2, Undo2 } from "lu
 import { formatAbsolute, formatEditedLabel } from "@/lib/dates";
 import type { Unit } from "@/lib/types";
 import { fromMm, toMm } from "@/lib/units";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Toggle } from "@/components/ui/toggle";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 export type SaveStatus = "idle" | "unsaved" | "saving" | "saved" | "error";
 
@@ -111,20 +121,20 @@ export default function Toolbar({
     <header className="border-b border-surface-tertiary bg-surface-primary">
       {/* Identity + file. pr-14 clears the fixed ThemeToggle (top-4 right-4). */}
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2 px-6 py-2 pr-14">
-        <Link
-          href="/"
-          className="inline-flex items-center gap-1 h-8 px-2 -ml-2 rounded-lg text-[12px] leading-4 text-content-primary hover:bg-surface-secondary"
-          title="Back to rooms"
-        >
-          <ArrowLeft size={14} strokeWidth={1} aria-hidden="true" />
-          Rooms
-        </Link>
+        <Hint label="Back to rooms">
+          <Button variant="ghost" className="-ml-2 text-[12px] leading-4" asChild>
+            <Link href="/">
+              <ArrowLeft size={14} strokeWidth={1} aria-hidden="true" />
+              Rooms
+            </Link>
+          </Button>
+        </Hint>
 
         <div className="flex items-center gap-2 min-w-0">
           <span className="text-[12px] leading-4 text-content-secondary shrink-0 select-none">
             Listen Labs /
           </span>
-          <input
+          <Input
             type="text"
             value={nameInput}
             onChange={(e) => setNameInput(e.target.value)}
@@ -132,7 +142,7 @@ export default function Toolbar({
             onKeyDown={(e) => {
               if (e.key === "Enter") (e.target as HTMLInputElement).blur();
             }}
-            className="h-8 px-2 text-[16px] leading-6 text-content-primary bg-transparent border border-transparent hover:border-surface-tertiary focus:border-content-disabled rounded-lg min-w-0 w-48"
+            className="h-8 w-48 min-w-0 border-transparent bg-transparent text-[16px] leading-6 hover:border-border"
             aria-label="Room name"
           />
         </div>
@@ -144,43 +154,46 @@ export default function Toolbar({
             onRetry={onRetrySave}
           />
           {lastEditedAt ? (
-            <span
-              className="text-[11px] leading-4 text-content-disabled tabular hidden sm:inline"
-              title={formatAbsolute(lastEditedAt)}
-            >
-              {formatEditedLabel(lastEditedAt)}
-            </span>
+            <Hint label={formatAbsolute(lastEditedAt)}>
+              <span className="text-[11px] leading-4 text-content-disabled tabular hidden sm:inline">
+                {formatEditedLabel(lastEditedAt)}
+              </span>
+            </Hint>
           ) : null}
         </div>
 
         <div className="flex-1 min-w-2" />
 
         <div className="flex items-center gap-1">
-          <button
+          <Button
             type="button"
+            variant="ghost"
+            className="text-[12px] leading-4"
             onClick={onExportPNG}
-            className="inline-flex items-center gap-1 h-8 px-3 rounded-lg text-[12px] leading-4 text-content-primary hover:bg-surface-secondary"
           >
             <Download size={14} strokeWidth={1} aria-hidden="true" />
             PNG
-          </button>
-          <button
+          </Button>
+          <Button
             type="button"
+            variant="ghost"
+            className="text-[12px] leading-4"
             onClick={onExportPDF}
-            className="inline-flex items-center gap-1 h-8 px-3 rounded-lg text-[12px] leading-4 text-content-primary hover:bg-surface-secondary"
           >
             <FileDown size={14} strokeWidth={1} aria-hidden="true" />
             PDF
-          </button>
-          <button
-            type="button"
-            onClick={onClear}
-            className="inline-flex items-center gap-1 h-8 px-3 rounded-lg text-[12px] leading-4 text-content-primary hover:text-content-negative hover:bg-surface-negative-secondary"
-            title="Clear wall"
-          >
-            <Trash2 size={14} strokeWidth={1} aria-hidden="true" />
-            Clear
-          </button>
+          </Button>
+          <Hint label="Clear wall">
+            <Button
+              type="button"
+              variant="ghost"
+              className="text-[12px] leading-4 hover:bg-destructive/10 hover:text-destructive"
+              onClick={onClear}
+            >
+              <Trash2 size={14} strokeWidth={1} aria-hidden="true" />
+              Clear
+            </Button>
+          </Hint>
         </div>
       </div>
 
@@ -195,27 +208,36 @@ export default function Toolbar({
         </div>
 
         <div className="flex items-center gap-1">
-          <ToggleButton
-            active={snapEnabled}
-            onClick={() => onChangeSnap(!snapEnabled)}
-            title="Toggle snap (hold Alt to disable while dragging)"
-          >
-            Snap
-          </ToggleButton>
-          <ToggleButton
-            active={redlinesEnabled}
-            onClick={() => onChangeRedlines(!redlinesEnabled)}
-            title="Show spacing between pieces and to the wall edges"
-          >
-            Redlines
-          </ToggleButton>
-          <ToggleButton
-            active={eyeLineEnabled}
-            onClick={() => onChangeEyeLineEnabled(!eyeLineEnabled)}
-            title={`Toggle the 57" gallery eye line`}
-          >
-            Eye line
-          </ToggleButton>
+          <Hint label="Toggle snap (hold Alt to disable while dragging)">
+            <Toggle
+              pressed={snapEnabled}
+              onPressedChange={onChangeSnap}
+              className="px-3 text-[12px] leading-4"
+              aria-label="Snap"
+            >
+              Snap
+            </Toggle>
+          </Hint>
+          <Hint label="Show spacing between pieces and to the wall edges">
+            <Toggle
+              pressed={redlinesEnabled}
+              onPressedChange={onChangeRedlines}
+              className="px-3 text-[12px] leading-4"
+              aria-label="Redlines"
+            >
+              Redlines
+            </Toggle>
+          </Hint>
+          <Hint label={`Toggle the 57" gallery eye line`}>
+            <Toggle
+              pressed={eyeLineEnabled}
+              onPressedChange={onChangeEyeLineEnabled}
+              className="px-3 text-[12px] leading-4"
+              aria-label="Eye line"
+            >
+              Eye line
+            </Toggle>
+          </Hint>
           <NumInput
             value={eyeInput}
             onChange={setEyeInput}
@@ -226,15 +248,17 @@ export default function Toolbar({
         </div>
 
         <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={onRandomize}
-            className="inline-flex items-center gap-1 h-8 px-3 rounded-lg text-[12px] leading-4 text-content-primary hover:bg-surface-secondary"
-            title="Randomize layout — re-arrange unpinned pieces using a classic gallery pattern"
-          >
-            <Shuffle size={14} strokeWidth={1} aria-hidden="true" />
-            Randomize
-          </button>
+          <Hint label="Randomize layout — re-arrange unpinned pieces using a classic gallery pattern">
+            <Button
+              type="button"
+              variant="ghost"
+              className="text-[12px] leading-4"
+              onClick={onRandomize}
+            >
+              <Shuffle size={14} strokeWidth={1} aria-hidden="true" />
+              Randomize
+            </Button>
+          </Hint>
           {layoutStatus ? (
             <span
               className="text-[10px] leading-4 text-content-secondary"
@@ -248,29 +272,48 @@ export default function Toolbar({
         <div className="flex-1 min-w-2" />
 
         <div className="flex items-center">
-          <button
-            type="button"
-            onClick={onUndo}
-            disabled={!canUndo}
-            aria-label="Undo"
-            title="Undo (⌘Z)"
-            className="inline-flex items-center justify-center w-8 h-8 rounded-lg text-content-primary hover:bg-surface-secondary disabled:text-content-disabled disabled:hover:bg-transparent disabled:cursor-not-allowed"
-          >
-            <Undo2 size={14} strokeWidth={1} aria-hidden="true" />
-          </button>
-          <button
-            type="button"
-            onClick={onRedo}
-            disabled={!canRedo}
-            aria-label="Redo"
-            title="Redo (⇧⌘Z)"
-            className="inline-flex items-center justify-center w-8 h-8 rounded-lg text-content-primary hover:bg-surface-secondary disabled:text-content-disabled disabled:hover:bg-transparent disabled:cursor-not-allowed"
-          >
-            <Redo2 size={14} strokeWidth={1} aria-hidden="true" />
-          </button>
+          <Hint label="Undo (⌘Z)">
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              onClick={onUndo}
+              disabled={!canUndo}
+              aria-label="Undo"
+            >
+              <Undo2 size={14} strokeWidth={1} aria-hidden="true" />
+            </Button>
+          </Hint>
+          <Hint label="Redo (⇧⌘Z)">
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              onClick={onRedo}
+              disabled={!canRedo}
+              aria-label="Redo"
+            >
+              <Redo2 size={14} strokeWidth={1} aria-hidden="true" />
+            </Button>
+          </Hint>
         </div>
       </div>
     </header>
+  );
+}
+
+function Hint({
+  label,
+  children,
+}: {
+  label: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>{children}</TooltipTrigger>
+      <TooltipContent>{label}</TooltipContent>
+    </Tooltip>
   );
 }
 
@@ -288,7 +331,7 @@ function NumInput({
   disabled?: boolean;
 }) {
   return (
-    <input
+    <Input
       type="number"
       step="0.5"
       min="0"
@@ -300,7 +343,7 @@ function NumInput({
       }}
       disabled={disabled}
       aria-label={ariaLabel}
-      className="w-16 h-8 px-2 border border-surface-tertiary rounded-lg text-[14px] leading-5 text-content-primary bg-surface-primary tabular disabled:opacity-50"
+      className="w-16"
     />
   );
 }
@@ -313,49 +356,27 @@ function UnitToggle({
   onChange: (u: Unit) => void;
 }) {
   return (
-    <div className="flex items-center h-8 border border-surface-tertiary rounded-lg overflow-hidden">
+    <ToggleGroup
+      type="single"
+      value={unit}
+      onValueChange={(v) => {
+        if (v === "in" || v === "cm") onChange(v);
+      }}
+      variant="outline"
+      spacing={0}
+      className="overflow-hidden border border-border"
+      aria-label="Units"
+    >
       {(["in", "cm"] as const).map((u) => (
-        <button
+        <ToggleGroupItem
           key={u}
-          type="button"
-          onClick={() => onChange(u)}
-          className={`h-full px-2 text-[12px] leading-4 ${
-            unit === u
-              ? "bg-surface-inverse-primary text-content-inverse-primary"
-              : "bg-surface-primary text-content-primary hover:bg-surface-secondary"
-          }`}
+          value={u}
+          className="rounded-none text-[12px] leading-4 data-[state=on]:bg-foreground data-[state=on]:text-background"
         >
           {u}
-        </button>
+        </ToggleGroupItem>
       ))}
-    </div>
-  );
-}
-
-function ToggleButton({
-  active,
-  onClick,
-  title,
-  children,
-}: {
-  active: boolean;
-  onClick: () => void;
-  title?: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      title={title}
-      className={`h-8 px-3 rounded-lg text-[12px] leading-4 ${
-        active
-          ? "bg-surface-brand-secondary text-content-brand"
-          : "text-content-secondary hover:text-content-primary hover:bg-surface-secondary"
-      }`}
-    >
-      {children}
-    </button>
+    </ToggleGroup>
   );
 }
 
@@ -380,12 +401,12 @@ function SaveIndicator({
           : status === "error"
             ? "Save failed"
             : "";
-  const color =
+  const variant =
     status === "error"
-      ? "text-content-negative"
+      ? "destructive"
       : status === "unsaved"
-        ? "text-content-secondary"
-        : "text-content-disabled";
+        ? "secondary"
+        : "ghost";
   const title =
     status === "error"
       ? error || "Save failed — click to retry"
@@ -393,21 +414,24 @@ function SaveIndicator({
         ? error
         : undefined;
 
+  const badge = (
+    <Badge variant={variant} className="min-w-[56px] justify-start" aria-live="polite">
+      {text}
+    </Badge>
+  );
+
   return (
-    <span
-      className={`text-[11px] leading-4 ${color} min-w-[56px] inline-flex items-center gap-1.5`}
-      aria-live="polite"
-      title={title}
-    >
-      <span>{text}</span>
+    <span className="inline-flex items-center gap-1.5">
+      {title ? <Hint label={title}>{badge}</Hint> : badge}
       {status === "error" && onRetry ? (
-        <button
+        <Button
           type="button"
+          variant="link"
+          className="h-auto px-0 text-[11px] leading-4 text-destructive"
           onClick={onRetry}
-          className="underline text-content-negative hover:text-content-primary"
         >
           Retry
-        </button>
+        </Button>
       ) : null}
     </span>
   );

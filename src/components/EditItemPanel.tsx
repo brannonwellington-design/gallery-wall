@@ -5,6 +5,16 @@ import { ArrowLeftRight, Pin, PinOff, X } from "lucide-react";
 import type { Frame, Item, Unit } from "@/lib/types";
 import { fromMm, toMm } from "@/lib/units";
 import { downscaleImage } from "@/lib/image";
+import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Toggle } from "@/components/ui/toggle";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 type Props = {
   item: Item;
@@ -135,15 +145,20 @@ export default function EditItemPanel({
             {item.name}
           </div>
         </div>
-        <button
-          type="button"
-          onClick={onClose}
-          className="inline-flex items-center justify-center w-8 h-8 rounded-md text-content-secondary hover:text-content-primary hover:bg-surface-secondary"
-          aria-label="Close edit panel"
-          title="Done editing"
-        >
-          <X size={14} strokeWidth={1.25} aria-hidden="true" />
-        </button>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              onClick={onClose}
+              aria-label="Close edit panel"
+            >
+              <X size={14} strokeWidth={1.25} aria-hidden="true" />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>Done editing</TooltipContent>
+        </Tooltip>
       </div>
 
       <div className="flex items-center gap-3">
@@ -153,13 +168,14 @@ export default function EditItemPanel({
           alt=""
           className="w-16 h-16 object-cover rounded-sm border border-surface-tertiary bg-surface-primary"
         />
-        <button
+        <Button
           type="button"
+          variant="link"
+          className="h-auto px-0 text-[12px] leading-4"
           onClick={() => fileInput.current?.click()}
-          className="text-[12px] leading-4 text-content-brand underline-offset-2 hover:underline"
         >
           Replace image
-        </button>
+        </Button>
         <input
           ref={fileInput}
           type="file"
@@ -172,31 +188,31 @@ export default function EditItemPanel({
         />
       </div>
 
-      <button
-        type="button"
-        onClick={onTogglePin}
-        aria-pressed={!!item.pinned}
-        className={`inline-flex items-center gap-2 h-8 px-3 self-start rounded-md text-[12px] leading-4 ${
-          item.pinned
-            ? "bg-surface-brand-secondary text-content-brand"
-            : "border border-surface-tertiary text-content-primary hover:bg-surface-secondary"
-        }`}
-        title={
-          item.pinned
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Toggle
+            pressed={!!item.pinned}
+            onPressedChange={onTogglePin}
+            className="self-start px-3 text-[12px] leading-4"
+            aria-label={item.pinned ? "Unpin piece" : "Pin position"}
+          >
+            {item.pinned ? (
+              <PinOff size={14} strokeWidth={1.25} aria-hidden="true" />
+            ) : (
+              <Pin size={14} strokeWidth={1.25} aria-hidden="true" />
+            )}
+            {item.pinned ? "Pinned" : "Pin position"}
+          </Toggle>
+        </TooltipTrigger>
+        <TooltipContent>
+          {item.pinned
             ? "Unpin — Randomize will move this piece"
-            : "Pin — keep this piece in place when randomizing"
-        }
-      >
-        {item.pinned ? (
-          <PinOff size={14} strokeWidth={1.25} aria-hidden="true" />
-        ) : (
-          <Pin size={14} strokeWidth={1.25} aria-hidden="true" />
-        )}
-        {item.pinned ? "Pinned" : "Pin position"}
-      </button>
+            : "Pin — keep this piece in place when randomizing"}
+        </TooltipContent>
+      </Tooltip>
 
       <Field label="Name">
-        <input
+        <Input
           type="text"
           value={name}
           onChange={(e) => setName(e.target.value)}
@@ -204,7 +220,6 @@ export default function EditItemPanel({
           onKeyDown={(e) => {
             if (e.key === "Enter") (e.target as HTMLInputElement).blur();
           }}
-          className="h-8 px-2 border border-surface-tertiary rounded-md text-[14px] leading-5 text-content-primary bg-surface-primary"
         />
       </Field>
 
@@ -217,15 +232,20 @@ export default function EditItemPanel({
             ariaLabel="Width"
           />
         </Field>
-        <button
-          type="button"
-          onClick={swapDims}
-          title="Swap width and height"
-          aria-label="Swap width and height"
-          className="inline-flex items-center justify-center h-8 w-8 mb-0 border border-surface-tertiary rounded-md text-content-secondary hover:text-content-primary hover:bg-surface-secondary"
-        >
-          <ArrowLeftRight size={14} strokeWidth={1.25} aria-hidden="true" />
-        </button>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              type="button"
+              variant="outline"
+              size="icon"
+              onClick={swapDims}
+              aria-label="Swap width and height"
+            >
+              <ArrowLeftRight size={14} strokeWidth={1.25} aria-hidden="true" />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>Swap width and height</TooltipContent>
+        </Tooltip>
         <Field label={`Height (${unitLabel})`}>
           <NumberInput
             value={height}
@@ -236,15 +256,19 @@ export default function EditItemPanel({
         </Field>
       </div>
 
-      <label className="flex items-center gap-2 text-[12px] leading-4 text-content-primary select-none cursor-pointer">
-        <input
-          type="checkbox"
+      <div className="flex items-center gap-2">
+        <Checkbox
+          id="edit-add-frame"
           checked={!!item.frame}
-          onChange={toggleFrame}
-          className="w-4 h-4 accent-[color:var(--content-brand)]"
+          onCheckedChange={() => toggleFrame()}
         />
-        Add a frame
-      </label>
+        <Label
+          htmlFor="edit-add-frame"
+          className="text-[12px] leading-4 text-content-primary cursor-pointer"
+        >
+          Add a frame
+        </Label>
+      </div>
 
       {item.frame && (
         <div className="grid grid-cols-3 gap-2">
@@ -287,10 +311,10 @@ function Field({
   children: React.ReactNode;
 }) {
   return (
-    <label className="flex flex-col gap-1 text-[10px] leading-4 text-content-disabled">
-      {label}
+    <div className="flex flex-col gap-1">
+      <Label>{label}</Label>
       {children}
-    </label>
+    </div>
   );
 }
 
@@ -306,7 +330,7 @@ function NumberInput({
   ariaLabel: string;
 }) {
   return (
-    <input
+    <Input
       type="number"
       step="0.1"
       min="0"
@@ -317,7 +341,6 @@ function NumberInput({
         if (e.key === "Enter") (e.target as HTMLInputElement).blur();
       }}
       aria-label={ariaLabel}
-      className="h-8 px-2 border border-surface-tertiary rounded-md text-[14px] leading-5 text-content-primary bg-surface-primary tabular"
     />
   );
 }

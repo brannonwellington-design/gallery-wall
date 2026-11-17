@@ -8,6 +8,8 @@ export type RoomDraft = {
   roomId: string;
   room: Room;
   updatedAt: number;
+  /** Server updatedAt the draft's edits were based on (absent on old drafts). */
+  baseUpdatedAt?: string;
 };
 
 function openDb(): Promise<IDBDatabase> {
@@ -28,7 +30,11 @@ function openDb(): Promise<IDBDatabase> {
   });
 }
 
-export async function saveDraft(roomId: string, room: Room): Promise<void> {
+export async function saveDraft(
+  roomId: string,
+  room: Room,
+  baseUpdatedAt?: string,
+): Promise<void> {
   try {
     const db = await openDb();
     await new Promise<void>((resolve, reject) => {
@@ -39,6 +45,7 @@ export async function saveDraft(roomId: string, room: Room): Promise<void> {
         roomId,
         room,
         updatedAt: Date.now(),
+        baseUpdatedAt,
       } satisfies RoomDraft);
     });
     db.close();

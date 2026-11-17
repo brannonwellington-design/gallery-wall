@@ -10,7 +10,17 @@ import {
 import { clearDraft, saveDraft } from "./roomDraft";
 import { roomFingerprint } from "./roomFingerprint";
 
-export type SaveStatus = "idle" | "unsaved" | "saving" | "saved" | "error";
+export type SaveStatus =
+  | "idle"
+  | "unsaved"
+  | "saving"
+  | "saved"
+  | "error"
+  /** Someone else saved this room since it was loaded; saving is paused. */
+  | "conflict";
+
+const CONFLICT_MESSAGE =
+  "This room was changed in another tab or by someone else. Reload to get the latest version — edits since your last save won’t be kept.";
 
 const DEBOUNCE_MS = 500;
 const DRAFT_DEBOUNCE_MS = 200;
@@ -22,6 +32,8 @@ const PAYLOAD_WARN_BYTES = 3_500_000;
 type Options = {
   roomId: string;
   room: Room;
+  /** updatedAt of the server copy the editor was loaded from. */
+  initialUpdatedAt: string;
   /** When false, skip server saves (e.g. while restoring a local draft). */
   enabled?: boolean;
   /** Called after a successful server save with the new updatedAt. */
@@ -41,6 +53,7 @@ type SaveFn = (
 export function useRoomAutosave({
   roomId,
   room,
+  initialUpdatedAt,
   enabled = true,
   onSaved,
   onRoomNormalized,
@@ -67,6 +80,9 @@ export function useRoomAutosave({
   const inFlight = useRef(false);
   const pendingAfterFlight = useRef(false);
   const performSaveRef = useRef<SaveFn | null>(null);
+  /** Server version our next save builds on — sent so the server can refuse stale writes. */
+  const baseUpdatedAt = useRef(initialUpdatedAt);
+  const conflicted = useRef(false);
 
   useEffect(() => {
     roomRef.current = room;
@@ -99,7 +115,7 @@ export function useRoomAutosave({
 
   const performSave = useCallback<SaveFn>(
     async (body, { keepalive = false } = {}) => {
-      if (!enabledRef.current) return;
+      if (!enabledRef.current || conflicted.current) return;
 
       let toSave = body;
 
@@ -119,7 +135,7 @@ export function useRoomAutosave({
           setSaveError(
             "Room is too large to save. Try removing a few pieces or re-adding images.",
           );
-          void saveDraft(roomId, toSave);
+          void saveDraft(roomId, toSave, baseUpdatedAt.current);
           return;
         }
       }
@@ -136,7 +152,10 @@ export function useRoomAutosave({
         return;
       }
 
-      const payload = JSON.stringify({ room: toSave });
+      const payload = JSON.stringify({
+        room: toSave,
+        baseUpdatedAt: baseUpdatedAt.current,
+      });
       const bytes = roomPayloadBytes(toSave);
 
       const gen = ++saveGen.current;
@@ -152,6 +171,17 @@ export function useRoomAutosave({
           body: payload,
           keepalive,
         });
+        if (res.status === 409) {
+          // Someone else saved first. Stop autosaving rather than overwrite
+          // their work; the user reloads to pick up the latest version.
+          if (gen !== saveGen.current) return;
+          conflicted.current = true;
+          pendingAfterFlight.current = false;
+          clearRetry();
+          setSaveStatus("conflict");
+          setSaveError(CONFLICT_MESSAGE);
+          return;
+        }
         if (!res.ok) {
           const txt = await res.text().catch(() => "");
           if (res.status === 413) {
@@ -173,6 +203,7 @@ export function useRoomAutosave({
         // Fingerprint of what we actually persisted — not the live room,
         // which may have newer edits (eye line, moves) made mid-save.
         lastSavedFp.current = fp;
+        if (data?.updatedAt) baseUpdatedAt.current = data.updatedAt;
         if (data?.room) {
           onRoomNormalizedRef.current?.(data.room);
         }
@@ -221,7 +252,7 @@ export function useRoomAutosave({
   }, [performSave]);
 
   const scheduleSave = useCallback(() => {
-    if (!enabledRef.current) return;
+    if (!enabledRef.current || conflicted.current) return;
     if (roomFingerprint(roomRef.current) === lastSavedFp.current) return;
 
     setSaveStatus((s) => (s === "saving" ? s : "unsaved"));
@@ -234,7 +265,7 @@ export function useRoomAutosave({
   }, []);
 
   const flush = useCallback(() => {
-    if (!enabledRef.current) return;
+    if (!enabledRef.current || conflicted.current) return;
     if (saveTimer.current) {
       clearTimeout(saveTimer.current);
       saveTimer.current = null;
@@ -243,20 +274,21 @@ export function useRoomAutosave({
     if (roomFingerprint(body) === lastSavedFp.current) return;
     // Local draft survives tab crashes even when keepalive PATCH is dropped
     // (Chrome caps keepalive request bodies around 64KB).
-    void saveDraft(roomId, body);
+    void saveDraft(roomId, body, baseUpdatedAt.current);
     void performSaveRef.current?.(body, { keepalive: true });
   }, [roomId]);
 
   // React to room edits.
   useEffect(() => {
-    if (!enabled) return;
+    if (!enabled || conflicted.current) return;
     if (roomFingerprint(room) === lastSavedFp.current) return;
 
     setSaveStatus((s) => (s === "saving" ? s : "unsaved"));
 
     if (draftTimer.current) clearTimeout(draftTimer.current);
     draftTimer.current = setTimeout(() => {
-      void saveDraft(roomId, roomRef.current);
+      if (conflicted.current) return;
+      void saveDraft(roomId, roomRef.current, baseUpdatedAt.current);
     }, DRAFT_DEBOUNCE_MS);
 
     scheduleSave();
@@ -280,10 +312,16 @@ export function useRoomAutosave({
   }, [flush, clearRetry]);
 
   const retrySave = useCallback(() => {
+    if (conflicted.current) {
+      // The local copy is stale; drop its draft so the reload shows the
+      // server version instead of re-applying the conflicting edits.
+      void clearDraft(roomId).finally(() => window.location.reload());
+      return;
+    }
     retryDelay.current = RETRY_BASE_MS;
     clearRetry();
     void performSaveRef.current?.(roomRef.current);
-  }, [clearRetry]);
+  }, [clearRetry, roomId]);
 
   return { saveStatus, saveError, retrySave, markSaved };
 }

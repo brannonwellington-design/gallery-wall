@@ -1,4 +1,8 @@
 import { NextResponse } from "next/server";
+import { base64Bytes, parseImageDataUrl } from "@/lib/dataUrl";
+import { errorMessage, jsonError, readJson } from "@/lib/server/http";
+import { readCapped, safeFetch } from "@/lib/server/safeFetch";
+import { supabaseHost } from "@/lib/server/supabase";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -10,27 +14,47 @@ export const maxDuration = 60;
 const MODEL_VERSION =
   "a029dff38972b5fda4ec5d75d7d1cd25aeff621d2cf4946a41055d7db66b80bc";
 
+const MAX_INPUT_BYTES = 8 * 1024 * 1024;
+const MAX_OUTPUT_BYTES = 20 * 1024 * 1024;
+
+/**
+ * Only send Replicate images the app itself produced: an inline raster
+ * data URL, or a URL in this project's own Supabase Storage bucket. Anything
+ * else would let callers point Replicate (and our bill) at arbitrary URLs.
+ */
+function acceptableInput(image: string): boolean {
+  if (image.startsWith("data:")) {
+    const parsed = parseImageDataUrl(image);
+    return !!parsed && base64Bytes(parsed.base64) <= MAX_INPUT_BYTES;
+  }
+  const host = supabaseHost();
+  if (!host) return false;
+  try {
+    const url = new URL(image);
+    return (
+      url.protocol === "https:" &&
+      url.host === host &&
+      url.pathname.startsWith("/storage/v1/object/public/room-images/")
+    );
+  } catch {
+    return false;
+  }
+}
+
 export async function POST(req: Request) {
   if (!process.env.REPLICATE_API_TOKEN) {
-    return NextResponse.json(
-      {
-        error:
-          "REPLICATE_API_TOKEN not configured. Add it to .env.local (and Vercel project env).",
-      },
-      { status: 500 },
+    return jsonError(
+      "REPLICATE_API_TOKEN not configured. Add it to .env.local (and Vercel project env).",
+      500,
     );
   }
-  let body: { imageDataUrl?: string };
-  try {
-    body = (await req.json()) as { imageDataUrl?: string };
-  } catch {
-    return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
+  const body = await readJson<{ imageDataUrl?: unknown }>(req);
+  if (!body) return jsonError("Invalid JSON body", 400);
+  if (typeof body.imageDataUrl !== "string" || !body.imageDataUrl) {
+    return jsonError("imageDataUrl required", 400);
   }
-  if (!body.imageDataUrl) {
-    return NextResponse.json(
-      { error: "imageDataUrl required" },
-      { status: 400 },
-    );
+  if (!acceptableInput(body.imageDataUrl)) {
+    return jsonError("Unsupported image source.", 400);
   }
 
   try {
@@ -45,21 +69,15 @@ export async function POST(req: Request) {
       },
       body: JSON.stringify({
         version: MODEL_VERSION,
-        input: {
-          image: body.imageDataUrl,
-          format: "png",
-          // Default settings — model handles the rest.
-        },
+        input: { image: body.imageDataUrl, format: "png" },
       }),
       signal: AbortSignal.timeout(75000),
     });
     if (!predRes.ok) {
       const errText = await predRes.text().catch(() => "");
-      return NextResponse.json(
-        {
-          error: `Replicate returned ${predRes.status}: ${errText.slice(0, 240) || predRes.statusText}`,
-        },
-        { status: 500 },
+      return jsonError(
+        `Replicate returned ${predRes.status}: ${errText.slice(0, 240) || predRes.statusText}`,
+        502,
       );
     }
     const prediction = (await predRes.json()) as {
@@ -67,18 +85,11 @@ export async function POST(req: Request) {
       output?: unknown;
       error?: string | null;
     };
-    if (prediction.error) {
-      return NextResponse.json(
-        { error: prediction.error },
-        { status: 500 },
-      );
-    }
+    if (prediction.error) return jsonError(prediction.error, 502);
     if (prediction.status !== "succeeded") {
-      return NextResponse.json(
-        {
-          error: `Replicate prediction status: ${prediction.status} (try again).`,
-        },
-        { status: 504 },
+      return jsonError(
+        `Replicate prediction status: ${prediction.status} (try again).`,
+        504,
       );
     }
 
@@ -88,27 +99,17 @@ export async function POST(req: Request) {
         : Array.isArray(prediction.output)
           ? String(prediction.output[0])
           : null;
-    if (!url) {
-      return NextResponse.json(
-        { error: "No image URL in Replicate response." },
-        { status: 500 },
-      );
-    }
+    if (!url) return jsonError("No image URL in Replicate response.", 502);
 
-    const imgRes = await fetch(url, { signal: AbortSignal.timeout(20000) });
+    const { res: imgRes } = await safeFetch(url, { timeoutMs: 20000 });
     if (!imgRes.ok) {
-      return NextResponse.json(
-        { error: `Couldn't fetch result image: ${imgRes.status}` },
-        { status: 500 },
-      );
+      return jsonError(`Couldn't fetch result image: ${imgRes.status}`, 502);
     }
-    const buf = Buffer.from(await imgRes.arrayBuffer());
-    const dataUrl = `data:image/png;base64,${buf.toString("base64")}`;
-    return NextResponse.json({ imageDataUrl: dataUrl });
+    const buf = await readCapped(imgRes, MAX_OUTPUT_BYTES);
+    return NextResponse.json({
+      imageDataUrl: `data:image/png;base64,${buf.toString("base64")}`,
+    });
   } catch (e) {
-    return NextResponse.json(
-      { error: e instanceof Error ? e.message : "Unknown error" },
-      { status: 500 },
-    );
+    return jsonError(errorMessage(e), 500);
   }
 }

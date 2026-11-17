@@ -80,6 +80,7 @@ export default function RoomEditor({
   const { saveStatus, saveError, retrySave, markSaved } = useRoomAutosave({
     roomId,
     room,
+    initialUpdatedAt,
     enabled: ready,
     onSaved,
     onRoomNormalized,
@@ -91,8 +92,14 @@ export default function RoomEditor({
     (async () => {
       const draft = await loadDraft(roomId);
       if (cancelled) return;
+      // A draft built on an older server version would overwrite whatever
+      // was saved since (by another tab or person), so it's discarded.
+      const draftIsCurrent =
+        !draft?.baseUpdatedAt ||
+        Date.parse(draft.baseUpdatedAt) === Date.parse(initialUpdatedAt);
       if (
         draft &&
+        draftIsCurrent &&
         roomFingerprint(draft.room) !== roomFingerprint(initialRoom)
       ) {
         // Prefer Storage URLs from the server when the draft still has huge

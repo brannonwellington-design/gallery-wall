@@ -3,6 +3,13 @@ import * as cheerio from "cheerio";
 import Anthropic from "@anthropic-ai/sdk";
 import { z } from "zod";
 import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
+import { base64Bytes, parseImageDataUrl } from "./dataUrl";
+import {
+  BodyTooLargeError,
+  readCapped,
+  safeFetch,
+  UnsafeUrlError,
+} from "./server/safeFetch";
 
 // ---- Schema ----
 
@@ -51,27 +58,24 @@ export async function extractFromUrl(rawUrl: string): Promise<ExtractResult> {
   return { url, extracted, imageDataUrl };
 }
 
-const SUPPORTED_IMAGE_TYPES = new Set([
-  "image/jpeg",
-  "image/png",
-  "image/gif",
-  "image/webp",
-]);
+// The client downscales to 1024px before sending, so real screenshots are
+// well under this; the cap only stops oversized direct API calls.
+const MAX_VISION_IMAGE_BYTES = 5 * 1024 * 1024;
+const MAX_PAGE_BYTES = 5 * 1024 * 1024;
+const MAX_PRODUCT_IMAGE_BYTES = 8 * 1024 * 1024;
 
 export async function extractFromImage(
   imageDataUrl: string,
 ): Promise<ExtractResult> {
-  const m = imageDataUrl.match(/^data:(image\/[^;,]+);base64,(.+)$/);
-  if (!m) {
-    throw new Error("Image must be a base64-encoded data URL.");
+  const parsed = parseImageDataUrl(imageDataUrl);
+  if (!parsed) {
+    throw new Error("Image must be a PNG, JPEG, GIF, or WebP data URL.");
   }
-  const mediaType = m[1].toLowerCase();
-  const base64 = m[2];
-  if (!SUPPORTED_IMAGE_TYPES.has(mediaType)) {
-    throw new Error(
-      `Unsupported image type ${mediaType}. Use PNG, JPEG, GIF, or WebP.`,
-    );
+  if (base64Bytes(parsed.base64) > MAX_VISION_IMAGE_BYTES) {
+    throw new Error("Image is too large — try a smaller screenshot.");
   }
+  const mediaType = parsed.contentType;
+  const base64 = parsed.base64;
 
   const extracted = await callClaudeVision(mediaType, base64);
   return { url: "[image]", extracted, imageDataUrl: null };
@@ -203,12 +207,9 @@ async function fetchPage(url: string): Promise<string> {
 async function directFetch(url: string): Promise<DirectFetchResult> {
   let res: Response;
   try {
-    res = await fetch(url, {
-      headers: BROWSER_HEADERS,
-      redirect: "follow",
-      signal: AbortSignal.timeout(15000),
-    });
+    ({ res } = await safeFetch(url, { headers: BROWSER_HEADERS }));
   } catch (e) {
+    if (e instanceof UnsafeUrlError) throw e;
     return {
       ok: false,
       blocked: false,
@@ -242,7 +243,15 @@ async function directFetch(url: string): Promise<DirectFetchResult> {
       error: `Unexpected content-type: ${contentType}`,
     };
   }
-  return { ok: true, html: await res.text() };
+  try {
+    const body = await readCapped(res, MAX_PAGE_BYTES);
+    return { ok: true, html: new TextDecoder().decode(body) };
+  } catch (e) {
+    if (e instanceof BodyTooLargeError) {
+      return { ok: false, blocked: false, status: res.status, error: "That page is too large to read." };
+    }
+    throw e;
+  }
 }
 
 async function scrapingBeeFetch(url: string, apiKey: string): Promise<string> {
@@ -283,7 +292,7 @@ async function scrapingBeeFetch(url: string, apiKey: string): Promise<string> {
       `ScrapingBee returned ${res.status}: ${errText.slice(0, 200) || res.statusText}`,
     );
   }
-  return await res.text();
+  return new TextDecoder().decode(await readCapped(res, MAX_PAGE_BYTES));
 }
 
 function condenseHtml(html: string, sourceUrl: string): string {
@@ -447,16 +456,20 @@ function fallback(warning: string): ExtractedProduct {
 }
 
 async function downloadImage(url: string): Promise<string | null> {
-  const res = await fetch(url, {
+  // The image URL comes from the model's reading of an untrusted page, so
+  // it gets the same address checks as the page itself.
+  const { res } = await safeFetch(url, {
     headers: { "User-Agent": USER_AGENT, Accept: "image/*,*/*;q=0.8" },
-    redirect: "follow",
-    signal: AbortSignal.timeout(15000),
   });
   if (!res.ok) return null;
-  const contentType = res.headers.get("content-type") || "image/jpeg";
-  if (!contentType.startsWith("image/")) return null;
-  const buf = Buffer.from(await res.arrayBuffer());
-  if (buf.byteLength > 8 * 1024 * 1024) return null; // 8 MB cap
+  const contentType = (res.headers.get("content-type") || "")
+    .split(";")[0]
+    .trim()
+    .toLowerCase();
+  if (!["image/jpeg", "image/png", "image/webp", "image/gif"].includes(contentType)) {
+    return null;
+  }
+  const buf = await readCapped(res, MAX_PRODUCT_IMAGE_BYTES);
   return `data:${contentType};base64,${buf.toString("base64")}`;
 }
 

@@ -1,43 +1,31 @@
 import { NextResponse } from "next/server";
 import { extractFromImage, extractFromUrl } from "@/lib/extract";
+import { errorMessage, jsonError, readJson } from "@/lib/server/http";
+import { UnsafeUrlError } from "@/lib/server/safeFetch";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 export const maxDuration = 60;
 
 export async function POST(req: Request) {
-  let body: { url?: string; imageDataUrl?: string };
-  try {
-    body = (await req.json()) as { url?: string; imageDataUrl?: string };
-  } catch {
-    return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
-  }
+  const body = await readJson<{ url?: unknown; imageDataUrl?: unknown }>(req);
+  if (!body) return jsonError("Invalid JSON body", 400);
   if (!process.env.ANTHROPIC_API_KEY) {
-    return NextResponse.json(
-      {
-        error:
-          "ANTHROPIC_API_KEY not configured. Add it to .env.local (and Vercel project env).",
-      },
-      { status: 500 },
+    return jsonError(
+      "ANTHROPIC_API_KEY not configured. Add it to .env.local (and Vercel project env).",
+      500,
     );
   }
   try {
     if (typeof body.imageDataUrl === "string" && body.imageDataUrl) {
-      const result = await extractFromImage(body.imageDataUrl);
-      return NextResponse.json(result);
+      return NextResponse.json(await extractFromImage(body.imageDataUrl));
     }
     if (typeof body.url === "string" && body.url.trim()) {
-      const result = await extractFromUrl(body.url.trim());
-      return NextResponse.json(result);
+      if (body.url.length > 2048) return jsonError("URL is too long.", 400);
+      return NextResponse.json(await extractFromUrl(body.url.trim()));
     }
-    return NextResponse.json(
-      { error: "Provide a url or an imageDataUrl." },
-      { status: 400 },
-    );
+    return jsonError("Provide a url or an imageDataUrl.", 400);
   } catch (e) {
-    return NextResponse.json(
-      { error: e instanceof Error ? e.message : "Unknown error" },
-      { status: 500 },
-    );
+    return jsonError(errorMessage(e), e instanceof UnsafeUrlError ? 400 : 500);
   }
 }

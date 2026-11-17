@@ -1,63 +1,55 @@
 import "server-only";
-import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import { base64Bytes, parseImageDataUrl } from "./dataUrl";
+import { isSafeId } from "./roomSchema";
+import { getServiceClient, IMAGE_BUCKET } from "./server/supabase";
 import type { Item, Room } from "./types";
 
-const BUCKET = "room-images";
+/** ~6 MB decoded per image — well under the bucket's 10 MB limit. */
+export const MAX_IMAGE_BYTES = 6_000_000;
 
-let client: SupabaseClient | null = null;
+export type ImageKind = "main" | "original";
 
-function getStorageClient(): SupabaseClient | null {
-  const url = process.env.SUPABASE_URL;
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!url || !key) return null;
-  if (!client) {
-    client = createClient(url, key, { auth: { persistSession: false } });
+export class ImageUploadError extends Error {
+  constructor(
+    message: string,
+    readonly status: number,
+  ) {
+    super(message);
   }
-  return client;
 }
 
-function parseDataUrl(dataUrl: string): {
-  contentType: string;
-  bytes: Buffer;
-  ext: string;
-} | null {
-  const m = dataUrl.match(/^data:(image\/[a-zA-Z0-9.+-]+);base64,(.+)$/);
-  if (!m) return null;
-  const contentType = m[1].toLowerCase();
-  const bytes = Buffer.from(m[2], "base64");
-  const ext =
-    contentType === "image/png"
-      ? "png"
-      : contentType === "image/webp"
-        ? "webp"
-        : contentType === "image/gif"
-          ? "gif"
-          : "jpg";
-  return { contentType, bytes, ext };
-}
-
-async function uploadDataUrl(
-  supabase: SupabaseClient,
+/**
+ * Upload one data-URL image to Storage and return its public URL. The path
+ * is built only from validated ids, so callers can't write outside
+ * `<roomId>/<itemId>-<kind>.<ext>`.
+ */
+export async function uploadImage(
   roomId: string,
   itemId: string,
-  kind: "main" | "original",
+  kind: ImageKind,
   dataUrl: string,
-): Promise<string | null> {
-  const parsed = parseDataUrl(dataUrl);
-  if (!parsed) return null;
+): Promise<string> {
+  const supabase = getServiceClient();
+  if (!supabase) throw new ImageUploadError("Image storage is not configured", 503);
+  if (!isSafeId(roomId) || !isSafeId(itemId)) {
+    throw new ImageUploadError("Invalid room or item id", 400);
+  }
+  const parsed = parseImageDataUrl(dataUrl);
+  if (!parsed) {
+    throw new ImageUploadError("Expected a PNG, JPEG, WebP, or GIF data URL", 400);
+  }
+  if (base64Bytes(parsed.base64) > MAX_IMAGE_BYTES) {
+    throw new ImageUploadError("Image is too large to upload", 413);
+  }
   const path = `${roomId}/${itemId}-${kind}.${parsed.ext}`;
   const { error } = await supabase.storage
-    .from(BUCKET)
-    .upload(path, parsed.bytes, {
+    .from(IMAGE_BUCKET)
+    .upload(path, Buffer.from(parsed.base64, "base64"), {
       contentType: parsed.contentType,
       upsert: true,
     });
-  if (error) {
-    console.error("[image-store] upload failed", path, error.message);
-    return null;
-  }
-  const { data } = supabase.storage.from(BUCKET).getPublicUrl(path);
-  return data.publicUrl;
+  if (error) throw new ImageUploadError(error.message, 500);
+  return supabase.storage.from(IMAGE_BUCKET).getPublicUrl(path).data.publicUrl;
 }
 
 /**
@@ -69,43 +61,28 @@ export async function externalizeRoomImages(
   roomId: string,
   room: Room,
 ): Promise<{ room: Room; changed: boolean }> {
-  const supabase = getStorageClient();
-  if (!supabase) return { room, changed: false };
+  if (!getServiceClient()) return { room, changed: false };
 
   let changed = false;
   const items: Item[] = [];
 
   for (const item of room.items) {
     let next = item;
-
-    if (item.imageDataUrl?.startsWith("data:")) {
-      const url = await uploadDataUrl(
-        supabase,
-        roomId,
-        item.id,
-        "main",
-        item.imageDataUrl,
-      );
-      if (url) {
-        next = { ...next, imageDataUrl: url };
+    for (const [field, kind] of [
+      ["imageDataUrl", "main"],
+      ["imageOriginalDataUrl", "original"],
+    ] as const) {
+      const value = next[field];
+      if (!value?.startsWith("data:")) continue;
+      try {
+        const url = await uploadImage(roomId, item.id, kind, value);
+        next = { ...next, [field]: url };
         changed = true;
+      } catch (e) {
+        // Leave the inline image in place; the save still goes through.
+        console.error("[image-store] upload failed", roomId, item.id, kind, e);
       }
     }
-
-    if (next.imageOriginalDataUrl?.startsWith("data:")) {
-      const url = await uploadDataUrl(
-        supabase,
-        roomId,
-        item.id,
-        "original",
-        next.imageOriginalDataUrl,
-      );
-      if (url) {
-        next = { ...next, imageOriginalDataUrl: url };
-        changed = true;
-      }
-    }
-
     items.push(next);
   }
 

@@ -1,76 +1,63 @@
 import { NextResponse } from "next/server";
 import { externalizeRoomImages } from "@/lib/imageStore";
-import { getRepo } from "@/lib/repo";
-import type { Room } from "@/lib/types";
+import { getRepo, RoomConflictError, RoomNotFoundError } from "@/lib/repo";
+import { isSafeId, parseRoom } from "@/lib/roomSchema";
+import { errorMessage, jsonError, readJson } from "@/lib/server/http";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
 type Ctx = { params: Promise<{ id: string }> };
 
+// Reads are side-effect free. Inline images left over from older rooms are
+// moved to Storage the next time the room is saved (see PATCH).
 export async function GET(_req: Request, { params }: Ctx) {
   try {
     const { id } = await params;
-    const record = await getRepo().get(id);
-    if (!record) return NextResponse.json({ error: "Not found" }, { status: 404 });
-
-    const { room, changed } = await externalizeRoomImages(id, record.room);
-    let updatedAt = record.updatedAt;
-    if (changed) {
-      ({ updatedAt } = await getRepo().update(id, room));
-    }
-
-    return NextResponse.json({ room, updatedAt });
+    const record = isSafeId(id) ? await getRepo().get(id) : null;
+    if (!record) return jsonError("Not found", 404);
+    return NextResponse.json({ room: record.room, updatedAt: record.updatedAt });
   } catch (e) {
-    return NextResponse.json({ error: errorMessage(e) }, { status: 500 });
+    return jsonError(errorMessage(e), 500);
   }
 }
 
 export async function PATCH(req: Request, { params }: Ctx) {
+  const { id } = await params;
+  if (!isSafeId(id)) return jsonError("Room not found", 404);
+
+  const body = await readJson<{ room?: unknown; baseUpdatedAt?: unknown }>(req);
+  if (!body) return jsonError("Invalid JSON body", 400);
+  const parsed = parseRoom(body.room);
+  if (!parsed.ok) return jsonError(parsed.error, 400);
+  const baseUpdatedAt =
+    typeof body.baseUpdatedAt === "string" ? body.baseUpdatedAt : undefined;
+
   try {
-    const { id } = await params;
-    const body = (await req.json()) as { room?: Room };
-    if (!body.room || !isRoom(body.room)) {
-      return NextResponse.json({ error: "Invalid room body" }, { status: 400 });
-    }
-    try {
-      const { room } = await externalizeRoomImages(id, body.room);
-      const { updatedAt } = await getRepo().update(id, room);
-      return NextResponse.json({ ok: true, updatedAt, room });
-    } catch (e) {
-      const msg = errorMessage(e);
-      if (msg === "Room not found") {
-        return NextResponse.json({ error: msg }, { status: 404 });
-      }
-      throw e;
-    }
+    const { room } = await externalizeRoomImages(id, parsed.room);
+    const { updatedAt } = await getRepo().update(id, room, {
+      expectedUpdatedAt: baseUpdatedAt,
+    });
+    return NextResponse.json({ ok: true, updatedAt, room });
   } catch (e) {
-    return NextResponse.json({ error: errorMessage(e) }, { status: 500 });
+    if (e instanceof RoomNotFoundError) return jsonError(e.message, 404);
+    if (e instanceof RoomConflictError) {
+      return NextResponse.json(
+        { error: e.message, conflict: true, currentUpdatedAt: e.currentUpdatedAt },
+        { status: 409 },
+      );
+    }
+    return jsonError(errorMessage(e), 500);
   }
 }
 
 export async function DELETE(_req: Request, { params }: Ctx) {
   try {
     const { id } = await params;
+    if (!isSafeId(id)) return jsonError("Room not found", 404);
     await getRepo().remove(id);
     return NextResponse.json({ ok: true });
   } catch (e) {
-    return NextResponse.json({ error: errorMessage(e) }, { status: 500 });
+    return jsonError(errorMessage(e), 500);
   }
-}
-
-function isRoom(v: unknown): v is Room {
-  if (!v || typeof v !== "object") return false;
-  const r = v as Record<string, unknown>;
-  return (
-    typeof r.name === "string" &&
-    typeof r.wallWidth === "number" &&
-    typeof r.wallHeight === "number" &&
-    (r.unit === "in" || r.unit === "cm") &&
-    Array.isArray(r.items)
-  );
-}
-
-function errorMessage(e: unknown): string {
-  return e instanceof Error ? e.message : "Unknown error";
 }

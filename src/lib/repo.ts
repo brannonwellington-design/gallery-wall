@@ -1,26 +1,55 @@
 import "server-only";
 import { promises as fs } from "fs";
 import path from "path";
-import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Room, RoomRecord, RoomSummary } from "./types";
 import { makeDefaultRoom } from "./defaults";
+import { getServiceClient } from "./server/supabase";
+
+export class RoomNotFoundError extends Error {
+  constructor() {
+    super("Room not found");
+  }
+}
+
+/** The room was saved by someone else since the caller last loaded it. */
+export class RoomConflictError extends Error {
+  constructor(readonly currentUpdatedAt: string | null) {
+    super("This room was changed somewhere else since you opened it.");
+  }
+}
+
+export type UpdateOptions = {
+  /**
+   * The updatedAt the caller's copy was based on. When given, the update
+   * only applies if the stored room still has that timestamp; otherwise it
+   * throws RoomConflictError instead of overwriting newer changes.
+   */
+  expectedUpdatedAt?: string;
+};
 
 export interface RoomsRepo {
   list(): Promise<RoomSummary[]>;
   get(id: string): Promise<RoomRecord | null>;
+  exists(id: string): Promise<boolean>;
   create(room?: Partial<Room>): Promise<{ id: string }>;
-  update(id: string, room: Room): Promise<{ updatedAt: string }>;
+  update(id: string, room: Room, opts?: UpdateOptions): Promise<{ updatedAt: string }>;
   remove(id: string): Promise<void>;
+}
+
+function sameInstant(a: string, b: string): boolean {
+  const ta = Date.parse(a);
+  const tb = Date.parse(b);
+  return Number.isFinite(ta) && ta === tb;
 }
 
 let cached: RoomsRepo | null = null;
 
 export function getRepo(): RoomsRepo {
   if (cached) return cached;
-  const url = process.env.SUPABASE_URL;
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (url && key) {
-    cached = new SupabaseRepo(url, key);
+  const client = getServiceClient();
+  if (client) {
+    cached = new SupabaseRepo(client);
   } else {
     if (process.env.NODE_ENV !== "test") {
       console.warn(
@@ -37,12 +66,7 @@ export function getRepo(): RoomsRepo {
 const TABLE = "rooms";
 
 class SupabaseRepo implements RoomsRepo {
-  private client: SupabaseClient;
-  constructor(url: string, key: string) {
-    this.client = createClient(url, key, {
-      auth: { persistSession: false },
-    });
-  }
+  constructor(private client: SupabaseClient) {}
   async list(): Promise<RoomSummary[]> {
     const { data, error } = await this.client
       .from(TABLE)
@@ -57,6 +81,8 @@ class SupabaseRepo implements RoomsRepo {
     }));
   }
   async get(id: string): Promise<RoomRecord | null> {
+    // Non-UUID ids would make Postgres throw a cast error; they can't exist.
+    if (!UUID.test(id)) return null;
     const { data, error } = await this.client
       .from(TABLE)
       .select("id, name, data, updated_at")
@@ -78,6 +104,16 @@ class SupabaseRepo implements RoomsRepo {
       updatedAt: (data.updated_at as string) ?? new Date().toISOString(),
     };
   }
+  async exists(id: string): Promise<boolean> {
+    if (!UUID.test(id)) return false;
+    const { data, error } = await this.client
+      .from(TABLE)
+      .select("id")
+      .eq("id", id)
+      .maybeSingle();
+    if (error) throw new Error(error.message);
+    return !!data;
+  }
   async create(partial?: Partial<Room>): Promise<{ id: string }> {
     const room = { ...makeDefaultRoom(), ...partial };
     const { data, error } = await this.client
@@ -88,26 +124,45 @@ class SupabaseRepo implements RoomsRepo {
     if (error) throw new Error(error.message);
     return { id: data!.id as string };
   }
-  async update(id: string, room: Room): Promise<{ updatedAt: string }> {
+  async update(
+    id: string,
+    room: Room,
+    { expectedUpdatedAt }: UpdateOptions = {},
+  ): Promise<{ updatedAt: string }> {
+    if (!UUID.test(id)) throw new RoomNotFoundError();
     const updatedAt = new Date().toISOString();
-    const { data, error } = await this.client
+    let query = this.client
       .from(TABLE)
       .update({
         name: room.name,
         data: stripName(room),
         updated_at: updatedAt,
       })
-      .eq("id", id)
-      .select("id");
+      .eq("id", id);
+    // Compare-and-set: only write if nobody else saved in the meantime.
+    if (expectedUpdatedAt) query = query.eq("updated_at", expectedUpdatedAt);
+    const { data, error } = await query.select("id");
     if (error) throw new Error(error.message);
-    if (!data || data.length === 0) throw new Error("Room not found");
+    if (!data || data.length === 0) {
+      const { data: row, error: readError } = await this.client
+        .from(TABLE)
+        .select("updated_at")
+        .eq("id", id)
+        .maybeSingle();
+      if (readError) throw new Error(readError.message);
+      if (!row) throw new RoomNotFoundError();
+      throw new RoomConflictError((row.updated_at as string) ?? null);
+    }
     return { updatedAt };
   }
   async remove(id: string): Promise<void> {
+    if (!UUID.test(id)) return;
     const { error } = await this.client.from(TABLE).delete().eq("id", id);
     if (error) throw new Error(error.message);
   }
 }
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 function stripName(room: Room) {
   // The `name` is its own column; the rest goes into the JSONB `data`.
@@ -178,12 +233,17 @@ class FileRepo implements RoomsRepo {
 
   async get(id: string): Promise<RoomRecord | null> {
     const shape = await this.read();
-    const r = shape.rooms[id];
+    const r = Object.hasOwn(shape.rooms, id) ? shape.rooms[id] : undefined;
     if (!r) return null;
     return {
       room: { name: r.name, ...r.data },
       updatedAt: r.updated_at,
     };
+  }
+
+  async exists(id: string): Promise<boolean> {
+    const shape = await this.read();
+    return Object.hasOwn(shape.rooms, id);
   }
 
   async create(partial?: Partial<Room>): Promise<{ id: string }> {
@@ -202,11 +262,18 @@ class FileRepo implements RoomsRepo {
     return { id };
   }
 
-  async update(id: string, room: Room): Promise<{ updatedAt: string }> {
+  async update(
+    id: string,
+    room: Room,
+    { expectedUpdatedAt }: UpdateOptions = {},
+  ): Promise<{ updatedAt: string }> {
     const updatedAt = new Date().toISOString();
     await this.mutate((shape) => {
-      const existing = shape.rooms[id];
-      if (!existing) throw new Error("Room not found");
+      const existing = Object.hasOwn(shape.rooms, id) ? shape.rooms[id] : undefined;
+      if (!existing) throw new RoomNotFoundError();
+      if (expectedUpdatedAt && !sameInstant(existing.updated_at, expectedUpdatedAt)) {
+        throw new RoomConflictError(existing.updated_at);
+      }
       existing.name = room.name;
       existing.data = stripName(room) as Omit<Room, "name">;
       existing.updated_at = updatedAt;

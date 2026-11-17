@@ -7,7 +7,9 @@ import { formatAbsolute, formatEditedLabel } from "@/lib/dates";
 import type { Unit } from "@/lib/types";
 import { fromMm, toMm } from "@/lib/units";
 
-export type SaveStatus = "idle" | "unsaved" | "saving" | "saved" | "error";
+import type { SaveStatus } from "@/lib/useRoomAutosave";
+
+export type { SaveStatus };
 
 type Props = {
   roomName: string;
@@ -379,15 +381,17 @@ function SaveIndicator({
           ? "Saved"
           : status === "error"
             ? "Save failed"
-            : "";
+            : status === "conflict"
+              ? "Out of date"
+              : "";
   const color =
-    status === "error"
+    status === "error" || status === "conflict"
       ? "text-content-negative"
       : status === "unsaved"
         ? "text-content-secondary"
         : "text-content-disabled";
   const title =
-    status === "error"
+    status === "error" || status === "conflict"
       ? error || "Save failed — click to retry"
       : status === "saved" && error
         ? error
@@ -400,13 +404,13 @@ function SaveIndicator({
       title={title}
     >
       <span>{text}</span>
-      {status === "error" && onRetry ? (
+      {(status === "error" || status === "conflict") && onRetry ? (
         <button
           type="button"
           onClick={onRetry}
           className="underline text-content-negative hover:text-content-primary"
         >
-          Retry
+          {status === "conflict" ? "Reload" : "Retry"}
         </button>
       ) : null}
     </span>

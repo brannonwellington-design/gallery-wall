@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
+import { moveItems } from "@/lib/arrange";
 import type { Room, Unit } from "@/lib/types";
 import { toMm } from "@/lib/units";
 import type { UseHistoryReturn } from "@/lib/useHistory";
@@ -14,61 +15,76 @@ const ARROWS: Record<string, [number, number]> = {
   ArrowDown: [0, 1],
 };
 
+function typingIn(target: EventTarget | null): boolean {
+  const t = target as HTMLElement | null;
+  const tag = t?.tagName;
+  return tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || !!t?.isContentEditable;
+}
+
 /**
- * Editor keyboard shortcuts:
- * - ⌘Z / ⇧⌘Z (Ctrl+Z / Ctrl+Y on Windows): undo / redo
- * - With a piece selected: Delete/Backspace removes it; arrows nudge it
+ * Editor keyboard shortcuts (ignored while typing in a field):
+ * - ⌘Z / ⇧⌘Z (Ctrl+Z / Ctrl+Y): undo / redo
+ * - ⌘A: select every piece · ⌘D: duplicate the selection · Esc: deselect
+ * - With pieces selected: Delete/Backspace removes them; arrows nudge them
  *   1 unit (Shift: 0.1, ⌘/Ctrl: 5)
- * Ignored while typing in a field.
  */
 export function useEditorShortcuts({
   undo,
   redo,
-  selectedId,
+  selectedIds,
   unit,
-  removeItem,
+  removeItems,
+  duplicate,
+  selectAll,
+  clearSelection,
   setRoom,
 }: {
   undo: () => void;
   redo: () => void;
-  selectedId: string | null;
+  selectedIds: Set<string>;
   unit: Unit;
-  removeItem: (id: string) => void;
+  removeItems: (ids: Set<string>) => void;
+  duplicate: () => void;
+  selectAll: () => void;
+  clearSelection: () => void;
   setRoom: SetRoom;
 }) {
-  // Global Undo / Redo shortcuts (Cmd/Ctrl+Z, Cmd/Ctrl+Shift+Z).
-  // Works any time the user isn't typing into an input.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      const t = e.target as HTMLElement | null;
-      const tag = t?.tagName;
-      if (tag === "INPUT" || tag === "TEXTAREA" || t?.isContentEditable) return;
+      if (typingIn(e.target)) return;
       const meta = e.metaKey || e.ctrlKey;
-      if (!meta) return;
       const key = e.key.toLowerCase();
-      if (key === "z") {
+
+      if (meta && key === "z") {
         e.preventDefault();
         if (e.shiftKey) redo();
         else undo();
-      } else if (key === "y") {
-        // Windows convention
+        return;
+      }
+      if (meta && key === "y") {
         e.preventDefault();
         redo();
+        return;
       }
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [undo, redo]);
+      if (meta && key === "a") {
+        e.preventDefault();
+        selectAll();
+        return;
+      }
+      if (key === "escape") {
+        clearSelection();
+        return;
+      }
 
-  // Keyboard shortcuts when an item is selected.
-  useEffect(() => {
-    if (!selectedId) return;
-    const onKey = (e: KeyboardEvent) => {
-      const tag = (e.target as HTMLElement | null)?.tagName;
-      if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
+      if (selectedIds.size === 0) return;
+      if (meta && key === "d") {
+        e.preventDefault();
+        duplicate();
+        return;
+      }
       if (e.key === "Delete" || e.key === "Backspace") {
         e.preventDefault();
-        removeItem(selectedId);
+        removeItems(selectedIds);
         return;
       }
       const arrow = ARROWS[e.key];
@@ -76,17 +92,12 @@ export function useEditorShortcuts({
       e.preventDefault();
       let amount = 1;
       if (e.shiftKey) amount = 0.1;
-      else if (e.metaKey || e.ctrlKey) amount = 5;
-      const dxMm = arrow[0] * toMm(amount, unit);
-      const dyMm = arrow[1] * toMm(amount, unit);
-      setRoom((r) => ({
-        ...r,
-        items: r.items.map((it) =>
-          it.id === selectedId ? { ...it, x: it.x + dxMm, y: it.y + dyMm } : it,
-        ),
-      }));
+      else if (meta) amount = 5;
+      const dx = arrow[0] * toMm(amount, unit);
+      const dy = arrow[1] * toMm(amount, unit);
+      setRoom((r) => ({ ...r, items: moveItems(r.items, selectedIds, dx, dy) }));
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [selectedId, removeItem, unit, setRoom]);
+  }, [undo, redo, selectedIds, unit, removeItems, duplicate, selectAll, clearSelection, setRoom]);
 }

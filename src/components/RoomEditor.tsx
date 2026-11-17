@@ -1,11 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import type Konva from "konva";
 import type { Fixture, FixtureKind, Frame, Item, Room, Unit } from "@/lib/types";
 import { constrainFixture, layoutContextFor, makeFixture } from "@/lib/fixtures";
 import { DEFAULT_EYE_LINE_HEIGHT_MM } from "@/lib/defaults";
+import { duplicateItems } from "@/lib/arrange";
+import { FIT_VIEW, isFitView, type CanvasView } from "@/lib/canvasView";
 import { eyeLine } from "@/lib/geometry";
 import { randomizeLayout } from "@/lib/layout";
 import { clearDraft, loadDraft } from "@/lib/roomDraft";
@@ -22,6 +24,7 @@ import AddItemForm from "./AddItemForm";
 import EditItemPanel from "./EditItemPanel";
 import FixturesPanel from "./FixturesPanel";
 import ItemsList from "./ItemsList";
+import SelectionPanel from "./SelectionPanel";
 import Toolbar from "./Toolbar";
 import { useBackgroundRemoval } from "./editor/useBackgroundRemoval";
 import { useEditorShortcuts } from "./editor/useEditorShortcuts";
@@ -68,18 +71,24 @@ export default function RoomEditor({
     canUndo,
     canRedo,
   } = useHistory<Room>(initialRoom);
-  const [selectedId, setSelectedIdRaw] = useState<string | null>(null);
+  // Selected pieces, in the order they were picked. Selecting pieces and
+  // selecting a fixture are mutually exclusive.
+  const [selection, setSelection] = useState<string[]>([]);
   const [selectedFixtureId, setSelectedFixtureId] = useState<string | null>(null);
-  // Selecting a piece and selecting a fixture are mutually exclusive.
-  const setSelectedId = useCallback(
-    (next: string | null | ((prev: string | null) => string | null)) => {
-      setSelectedIdRaw(next);
-      if (typeof next !== "function") setSelectedFixtureId(null);
-    },
-    [],
-  );
+  const selectedIds = useMemo(() => new Set(selection), [selection]);
+  const selectedId = selection.length === 1 ? selection[0] : null;
+  const selectItem = useCallback((id: string | null, additive = false) => {
+    setSelectedFixtureId(null);
+    if (id === null) {
+      setSelection([]);
+      return;
+    }
+    setSelection((prev) =>
+      additive ? (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]) : [id],
+    );
+  }, []);
   const selectFixture = useCallback((id: string) => {
-    setSelectedIdRaw(null);
+    setSelection([]);
     setSelectedFixtureId(id);
   }, []);
   const [snapEnabled, setSnapEnabled] = useState(true);
@@ -88,6 +97,7 @@ export default function RoomEditor({
   const [updatedAt, setUpdatedAt] = useState(initialUpdatedAt);
   const [clearOpen, setClearOpen] = useState(false);
   const stageRef = useRef<Konva.Stage | null>(null);
+  const [view, setView] = useState<CanvasView>(FIT_VIEW);
 
   const onSaved = useCallback((iso: string) => {
     setUpdatedAt(iso);
@@ -180,12 +190,35 @@ export default function RoomEditor({
     });
   }
 
-  const moveItem = useCallback((id: string, x: number, y: number) => {
+  /** Commit new positions for one or more pieces as a single undo step. */
+  const moveItemsTo = useCallback((moves: { id: string; x: number; y: number }[]) => {
+    const byId = new Map(moves.map((m) => [m.id, m]));
     setRoom((r) => ({
       ...r,
-      items: r.items.map((it) => (it.id === id ? { ...it, x, y } : it)),
+      items: r.items.map((it) => {
+        const m = byId.get(it.id);
+        return m ? { ...it, x: m.x, y: m.y } : it;
+      }),
     }));
   }, [setRoom]);
+
+  /** Apply an arrange operation (align, distribute, …) to the room's pieces. */
+  const arrange = useCallback(
+    (fn: (items: Item[]) => Item[]) => setRoom((r) => ({ ...r, items: fn(r.items) })),
+    [setRoom],
+  );
+
+  const duplicateSelection = useCallback(() => {
+    if (selectedIds.size === 0) return;
+    const copies = duplicateItems(room.items, selectedIds, uid);
+    setRoom((r) => ({ ...r, items: [...r.items, ...copies] }));
+    setSelection(copies.map((c) => c.id));
+  }, [room.items, selectedIds, setRoom]);
+
+  const selectAll = useCallback(() => {
+    setSelectedFixtureId(null);
+    setSelection(room.items.map((it) => it.id));
+  }, [room.items]);
 
   const addFixture = useCallback(
     (kind: FixtureKind) => {
@@ -214,10 +247,11 @@ export default function RoomEditor({
     [setRoom],
   );
 
-  const removeItem = useCallback((id: string) => {
-    setRoom((r) => ({ ...r, items: r.items.filter((it) => it.id !== id) }));
-    setSelectedId((prev) => (prev === id ? null : prev));
-  }, [setRoom, setSelectedId]);
+  const removeItems = useCallback((ids: Set<string>) => {
+    setRoom((r) => ({ ...r, items: r.items.filter((it) => !ids.has(it.id)) }));
+    setSelection((prev) => prev.filter((x) => !ids.has(x)));
+  }, [setRoom]);
+  const removeItem = useCallback((id: string) => removeItems(new Set([id])), [removeItems]);
 
   const updateItem = useCallback((id: string, patch: Partial<Item>) => {
     setRoom((r) => ({
@@ -263,8 +297,29 @@ export default function RoomEditor({
 
   const { bgBusyId, bgError, dismissBgError, toggleBackground } =
     useBackgroundRemoval(room.items, setRoom);
-  useEditorShortcuts({ undo, redo, selectedId, unit: room.unit, removeItem, setRoom });
-  const { exportPNG, exportPDF } = useWallExport(stageRef, room.name);
+  useEditorShortcuts({
+    undo,
+    redo,
+    selectedIds,
+    unit: room.unit,
+    removeItems,
+    duplicate: duplicateSelection,
+    selectAll,
+    clearSelection: () => selectItem(null),
+    setRoom,
+  });
+  const wallExport = useWallExport(stageRef, room.name);
+  // Exports capture the canvas as drawn, so fit the whole wall first.
+  const withFitView = useCallback(
+    (run: () => void | Promise<void>) => () => {
+      if (isFitView(view)) return void run();
+      setView(FIT_VIEW);
+      requestAnimationFrame(() => requestAnimationFrame(() => void run()));
+    },
+    [view],
+  );
+  const exportPNG = withFitView(wallExport.exportPNG);
+  const exportPDF = withFitView(wallExport.exportPDF);
 
   function requestClearWall() {
     setClearOpen(true);
@@ -272,7 +327,7 @@ export default function RoomEditor({
 
   function confirmClearWall() {
     setRoom((r) => ({ ...r, items: [] }));
-    setSelectedId(null);
+    setSelection([]);
     setClearOpen(false);
   }
 
@@ -342,9 +397,9 @@ export default function RoomEditor({
             <ItemsList
               items={room.items}
               unit={room.unit}
-              selectedId={selectedId}
+              selectedIds={selectedIds}
               bgBusyId={bgBusyId}
-              onSelect={setSelectedId}
+              onSelect={selectItem}
               onRemove={removeItem}
               onToggleBackground={toggleBackground}
               onTogglePin={togglePin}
@@ -359,10 +414,21 @@ export default function RoomEditor({
                     unit={room.unit}
                     onUpdate={updateItem}
                     onTogglePin={() => togglePin(selectedItem.id)}
-                    onClose={() => setSelectedId(null)}
+                    onDuplicate={duplicateSelection}
+                    onClose={() => selectItem(null)}
                   />
                 ) : null;
               })()}
+            {selection.length > 1 ? (
+              <SelectionPanel
+                room={room}
+                selectedIds={selectedIds}
+                onArrange={arrange}
+                onDuplicate={duplicateSelection}
+                onRemove={() => removeItems(selectedIds)}
+                onClear={() => selectItem(null)}
+              />
+            ) : null}
             <AddItemForm unit={room.unit} onAdd={addItem} />
             <FixturesPanel
               room={room}
@@ -379,11 +445,13 @@ export default function RoomEditor({
           <WallCanvas
             ref={stageRef}
             room={room}
-            selectedId={selectedId}
+            selectedIds={selectedIds}
             snapEnabled={snapEnabled}
             redlinesEnabled={redlinesEnabled}
-            onSelect={setSelectedId}
-            onMoveItem={moveItem}
+            onSelect={selectItem}
+            onMoveItems={moveItemsTo}
+            view={view}
+            onViewChange={setView}
             selectedFixtureId={selectedFixtureId}
             onSelectFixture={selectFixture}
             onMoveFixture={(id, x, y) => updateFixture(id, { x, y })}

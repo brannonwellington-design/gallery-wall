@@ -13,9 +13,10 @@ import {
 type Props = {
   items: Item[];
   unit: Unit;
-  selectedId: string | null;
+  selectedIds: Set<string>;
   bgBusyId: string | null;
-  onSelect: (id: string | null) => void;
+  /** additive: Shift/⌘-click adds or removes the piece from the selection. */
+  onSelect: (id: string | null, additive?: boolean) => void;
   onRemove: (id: string) => void;
   onToggleBackground: (id: string) => void;
   onTogglePin: (id: string) => void;
@@ -24,7 +25,7 @@ type Props = {
 export default function ItemsList({
   items,
   unit,
-  selectedId,
+  selectedIds,
   bgBusyId,
   onSelect,
   onRemove,
@@ -41,7 +42,7 @@ export default function ItemsList({
   return (
     <ul className="flex flex-col">
       {items.map((it) => {
-        const active = it.id === selectedId;
+        const active = selectedIds.has(it.id);
         const bgRemoved = Boolean(it.imageOriginalSrc);
         const bgBusy = bgBusyId === it.id;
         const bgLabel = bgBusy
@@ -55,12 +56,23 @@ export default function ItemsList({
         return (
           <li
             key={it.id}
-            className={`flex items-center gap-3 px-6 py-3 cursor-pointer ${
+            className={`flex items-center gap-3 px-6 py-3 cursor-pointer select-none outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring ${
               active
                 ? "bg-surface-brand-secondary"
                 : "hover:bg-surface-secondary"
             }`}
-            onClick={() => onSelect(it.id)}
+            role="button"
+            tabIndex={0}
+            aria-pressed={active}
+            aria-label={`Select ${it.name || "Untitled"}`}
+            onClick={(e) => onSelect(it.id, e.shiftKey || e.metaKey || e.ctrlKey)}
+            onKeyDown={(e) => {
+              if (e.target !== e.currentTarget) return;
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                onSelect(it.id, e.shiftKey || e.metaKey || e.ctrlKey);
+              }
+            }}
           >
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img

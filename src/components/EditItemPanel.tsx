@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { ArrowLeftRight, Pin, PinOff, X } from "lucide-react";
+import { ArrowLeftRight, Copy, Pin, PinOff, X } from "lucide-react";
 import type { Frame, Item, Unit } from "@/lib/types";
 import { DEFAULT_FRAME } from "@/lib/defaults";
 import { fromMm, toInput, toMm } from "@/lib/units";
@@ -23,21 +23,24 @@ type Props = {
   unit: Unit;
   onUpdate: (id: string, patch: Partial<Item>) => void;
   onTogglePin: () => void;
+  onDuplicate: () => void;
   onClose: () => void;
 };
-
 
 export default function EditItemPanel({
   item,
   unit,
   onUpdate,
   onTogglePin,
+  onDuplicate,
   onClose,
 }: Props) {
   const unitLabel = unit === "in" ? '"' : "cm";
 
   const [name, setName] = useState(item.name);
-  const [width, setWidth] = useState(() => fromMm(item.artWidth, unit).toFixed(1));
+  const [width, setWidth] = useState(() =>
+    fromMm(item.artWidth, unit).toFixed(1),
+  );
   const [height, setHeight] = useState(() =>
     fromMm(item.artHeight, unit).toFixed(1),
   );
@@ -99,10 +102,7 @@ export default function EditItemPanel({
     if (!item.frame) return;
     const newMat = toMm(Number(matInput) || 0, unit);
     const newFrame = toMm(Number(frameInput) || 0, unit);
-    if (
-      newMat !== item.frame.matWidth ||
-      newFrame !== item.frame.frameWidth
-    ) {
+    if (newMat !== item.frame.matWidth || newFrame !== item.frame.frameWidth) {
       onUpdate(item.id, {
         frame: { ...item.frame, matWidth: newMat, frameWidth: newFrame },
       });
@@ -187,28 +187,44 @@ export default function EditItemPanel({
         />
       </div>
 
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <Toggle
-            pressed={!!item.pinned}
-            onPressedChange={onTogglePin}
-            className="self-start px-3 text-label"
-            aria-label={item.pinned ? "Unpin piece" : "Pin position"}
-          >
-            {item.pinned ? (
-              <PinOff size={14} strokeWidth={1.25} aria-hidden="true" />
-            ) : (
-              <Pin size={14} strokeWidth={1.25} aria-hidden="true" />
-            )}
-            {item.pinned ? "Pinned" : "Pin position"}
-          </Toggle>
-        </TooltipTrigger>
-        <TooltipContent>
-          {item.pinned
-            ? "Unpin — Randomize will move this piece"
-            : "Pin — keep this piece in place when randomizing"}
-        </TooltipContent>
-      </Tooltip>
+      <div className="flex items-center gap-2">
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Toggle
+              pressed={!!item.pinned}
+              onPressedChange={onTogglePin}
+              className="self-start px-3 text-label"
+              aria-label={item.pinned ? "Unpin piece" : "Pin position"}
+            >
+              {item.pinned ? (
+                <PinOff size={14} strokeWidth={1.25} aria-hidden="true" />
+              ) : (
+                <Pin size={14} strokeWidth={1.25} aria-hidden="true" />
+              )}
+              {item.pinned ? "Pinned" : "Pin position"}
+            </Toggle>
+          </TooltipTrigger>
+          <TooltipContent>
+            {item.pinned
+              ? "Unpin — Randomize will move this piece"
+              : "Pin — keep this piece in place when randomizing"}
+          </TooltipContent>
+        </Tooltip>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              type="button"
+              variant="outline"
+              className="px-3 text-label"
+              onClick={onDuplicate}
+            >
+              <Copy size={14} strokeWidth={1.25} aria-hidden="true" />
+              Duplicate
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>Duplicate (⌘D)</TooltipContent>
+        </Tooltip>
+      </div>
 
       <Field label="Name">
         <Input

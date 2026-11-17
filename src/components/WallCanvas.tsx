@@ -10,16 +10,21 @@ import { eyeLine, outerRect } from "@/lib/geometry";
 import { formatLength } from "@/lib/units";
 import { computeSnap, type Guide, type Rect as SnapRect } from "@/lib/snap";
 import { computeSpacingSegments, type SpacingSegment } from "@/lib/spacing";
+import { Minus, Plus } from "lucide-react";
+import { FIT_VIEW, isFitView, MAX_ZOOM, MIN_ZOOM, type CanvasView } from "@/lib/canvasView";
 import FixtureNode from "./FixtureNode";
 import ItemNode from "./ItemNode";
 
 type Props = {
   room: Room;
-  selectedId: string | null;
+  selectedIds: Set<string>;
   snapEnabled: boolean;
   redlinesEnabled: boolean;
-  onSelect: (id: string | null) => void;
-  onMoveItem: (id: string, xMm: number, yMm: number) => void;
+  onSelect: (id: string | null, additive?: boolean) => void;
+  /** Commit positions for one or more pieces (a drag of the selection). */
+  onMoveItems: (moves: { id: string; x: number; y: number }[]) => void;
+  view: CanvasView;
+  onViewChange: (view: CanvasView) => void;
   selectedFixtureId: string | null;
   onSelectFixture: (id: string) => void;
   onMoveFixture: (id: string, xMm: number, yMm: number) => void;
@@ -34,11 +39,13 @@ const itemRect = outerRect;
 const WallCanvas = forwardRef<Konva.Stage, Props>(function WallCanvas(
   {
     room,
-    selectedId,
+    selectedIds,
     snapEnabled,
     redlinesEnabled,
     onSelect,
-    onMoveItem,
+    onMoveItems,
+    view,
+    onViewChange,
     selectedFixtureId,
     onSelectFixture,
     onMoveFixture,
@@ -46,6 +53,10 @@ const WallCanvas = forwardRef<Konva.Stage, Props>(function WallCanvas(
   ref,
 ) {
   const containerRef = useRef<HTMLDivElement>(null);
+  const itemsLayerRef = useRef<Konva.Layer>(null);
+  // While dragging a multi-piece selection: where each piece started (mm).
+  const groupDrag = useRef<{ leader: string; starts: Map<string, { x: number; y: number }> } | null>(null);
+  const selectedId = selectedIds.size === 1 ? [...selectedIds][0] : null;
   const chrome = useCanvasChrome();
   const [size, setSize] = useState({ w: 0, h: 0 });
   const [dragging, setDragging] = useState<{
@@ -113,11 +124,55 @@ const WallCanvas = forwardRef<Konva.Stage, Props>(function WallCanvas(
   const availableH = Math.max(0, size.h - PADDING * 2);
   const scaleX = availableW / room.wallWidth;
   const scaleY = availableH / room.wallHeight;
-  const scale = Math.min(scaleX, scaleY) || 1;
+  const fitScale = Math.min(scaleX, scaleY) || 1;
+  const scale = fitScale * view.zoom;
   const wallPxW = room.wallWidth * scale;
   const wallPxH = room.wallHeight * scale;
-  const offsetX = (size.w - wallPxW) / 2;
-  const offsetY = (size.h - wallPxH) / 2;
+  const offsetX = (size.w - wallPxW) / 2 + view.panX;
+  const offsetY = (size.h - wallPxH) / 2 + view.panY;
+
+  // Trackpad pinch / ⌘-scroll zooms around the pointer; plain scroll pans
+  // when zoomed in. Native listener so preventDefault stops page zoom.
+  const viewRef = useRef({ view, size, fitScale, wall: { w: room.wallWidth, h: room.wallHeight } });
+  useEffect(() => {
+    viewRef.current = { view, size, fitScale, wall: { w: room.wallWidth, h: room.wallHeight } };
+  });
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const onWheel = (e: WheelEvent) => {
+      const { view: v, size: sz, fitScale: fs, wall } = viewRef.current;
+      if (e.ctrlKey || e.metaKey) {
+        e.preventDefault();
+        const rect = el.getBoundingClientRect();
+        const px = e.clientX - rect.left;
+        const py = e.clientY - rect.top;
+        const oldScale = fs * v.zoom;
+        const zoom = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, v.zoom * Math.exp(-e.deltaY * 0.0025)));
+        const newScale = fs * zoom;
+        // Keep the wall point under the pointer where it is.
+        const wx = (px - ((sz.w - wall.w * oldScale) / 2 + v.panX)) / oldScale;
+        const wy = (py - ((sz.h - wall.h * oldScale) / 2 + v.panY)) / oldScale;
+        onViewChange({
+          zoom,
+          panX: px - wx * newScale - (sz.w - wall.w * newScale) / 2,
+          panY: py - wy * newScale - (sz.h - wall.h * newScale) / 2,
+        });
+      } else if (v.zoom > 1) {
+        e.preventDefault();
+        onViewChange({ ...v, panX: v.panX - e.deltaX, panY: v.panY - e.deltaY });
+      }
+    };
+    el.addEventListener("wheel", onWheel, { passive: false });
+    return () => el.removeEventListener("wheel", onWheel);
+  }, [onViewChange]);
+
+  function zoomBy(factor: number) {
+    const zoom = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, view.zoom * factor));
+    // Zoom around the window center.
+    const k = zoom / view.zoom;
+    onViewChange({ zoom, panX: view.panX * k, panY: view.panY * k });
+  }
 
   const fixtures = room.fixtures ?? [];
   const wallSize = { wallWidth: room.wallWidth, wallHeight: room.wallHeight };
@@ -151,8 +206,11 @@ const WallCanvas = forwardRef<Konva.Stage, Props>(function WallCanvas(
         width: rect.width,
         height: rect.height,
       };
+      const movingTogether = groupDrag.current?.starts;
       const others = [
-        ...room.items.filter((it) => it.id !== item.id).map(itemRect),
+        ...room.items
+          .filter((it) => it.id !== item.id && !movingTogether?.has(it.id))
+          .map(itemRect),
         // Fixtures: align to their edges and centers. For furniture the
         // keep-out rect's top edge is the "8 in above" line, so a piece's
         // bottom snaps to the recommended hanging height.
@@ -218,7 +276,7 @@ const WallCanvas = forwardRef<Konva.Stage, Props>(function WallCanvas(
           width={size.w}
           height={size.h}
           onMouseDown={(e) => {
-            if (e.target === e.target.getStage()) onSelect(null);
+            if (e.target === e.target.getStage() && !e.evt.shiftKey) onSelect(null);
           }}
           onTouchStart={(e) => {
             if (e.target === e.target.getStage()) onSelect(null);
@@ -254,20 +312,41 @@ const WallCanvas = forwardRef<Konva.Stage, Props>(function WallCanvas(
           </Layer>
 
           {/* Items (positioned relative to wall origin) */}
-          <Layer x={offsetX} y={offsetY}>
+          <Layer ref={itemsLayerRef} x={offsetX} y={offsetY}>
             {room.items.map((item) => (
               <ItemNode
                 key={item.id}
                 item={item}
                 scale={scale}
-                selected={item.id === selectedId}
-                onSelect={() => onSelect(item.id)}
-                onDragStart={() => {
-                  onSelect(item.id);
+                selected={selectedIds.has(item.id)}
+                onSelect={(additive) => onSelect(item.id, additive)}
+                onDragStart={(additive) => {
+                  const inSelection = selectedIds.has(item.id);
+                  if (!inSelection) onSelect(item.id, additive);
+                  // Dragging one of several selected pieces moves them all.
+                  const members =
+                    inSelection && selectedIds.size > 1
+                      ? room.items.filter((it) => selectedIds.has(it.id))
+                      : additive && selectedIds.size > 0
+                        ? room.items.filter((it) => selectedIds.has(it.id) || it.id === item.id)
+                        : [item];
+                  groupDrag.current =
+                    members.length > 1
+                      ? { leader: item.id, starts: new Map(members.map((m) => [m.id, { x: m.x, y: m.y }])) }
+                      : null;
                   setDragging({ id: item.id, x: item.x, y: item.y });
                 }}
-                onDragMove={() => {
-                  /* dragBoundFunc updates dragging state */
+                onDragMove={(x, y) => {
+                  const g = groupDrag.current;
+                  const layer = itemsLayerRef.current;
+                  if (!g || !layer) return;
+                  const start = g.starts.get(g.leader)!;
+                  const dx = x - start.x;
+                  const dy = y - start.y;
+                  for (const [id, s] of g.starts) {
+                    if (id === g.leader) continue;
+                    layer.findOne(`#item-${id}`)?.position({ x: (s.x + dx) * scale, y: (s.y + dy) * scale });
+                  }
                 }}
                 onDragEnd={(x, y) => {
                   if (guidesRaf.current != null) {
@@ -277,7 +356,16 @@ const WallCanvas = forwardRef<Konva.Stage, Props>(function WallCanvas(
                   pendingDrag.current = null;
                   setDragging(null);
                   setGuides([]);
-                  onMoveItem(item.id, x, y);
+                  const g = groupDrag.current;
+                  groupDrag.current = null;
+                  if (g) {
+                    const start = g.starts.get(g.leader)!;
+                    const dx = x - start.x;
+                    const dy = y - start.y;
+                    onMoveItems([...g.starts].map(([id, s]) => ({ id, x: s.x + dx, y: s.y + dy })));
+                  } else {
+                    onMoveItems([{ id: item.id, x, y }]);
+                  }
                 }}
                 dragBoundFunc={makeDragBoundFunc(item)}
               />
@@ -373,6 +461,35 @@ const WallCanvas = forwardRef<Konva.Stage, Props>(function WallCanvas(
           </Layer>
         </Stage>
       )}
+      <div className="absolute bottom-3 right-3 flex items-center gap-0.5 rounded-lg border border-surface-tertiary bg-surface-primary p-0.5 shadow-sm">
+        <button
+          type="button"
+          onClick={() => zoomBy(1 / 1.25)}
+          disabled={view.zoom <= MIN_ZOOM}
+          aria-label="Zoom out"
+          className="flex size-7 items-center justify-center rounded-md text-content-primary hover:bg-surface-secondary disabled:text-content-disabled"
+        >
+          <Minus size={14} strokeWidth={1.25} aria-hidden="true" />
+        </button>
+        <button
+          type="button"
+          onClick={() => onViewChange(FIT_VIEW)}
+          aria-label="Fit wall to window"
+          title="Fit wall to window"
+          className="h-7 min-w-12 rounded-md px-1.5 text-label text-content-secondary tabular hover:bg-surface-secondary"
+        >
+          {isFitView(view) ? "Fit" : `${Math.round(view.zoom * 100)}%`}
+        </button>
+        <button
+          type="button"
+          onClick={() => zoomBy(1.25)}
+          disabled={view.zoom >= MAX_ZOOM}
+          aria-label="Zoom in"
+          className="flex size-7 items-center justify-center rounded-md text-content-primary hover:bg-surface-secondary disabled:text-content-disabled"
+        >
+          <Plus size={14} strokeWidth={1.25} aria-hidden="true" />
+        </button>
+      </div>
     </div>
   );
 });

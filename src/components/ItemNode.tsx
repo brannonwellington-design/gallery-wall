@@ -11,8 +11,9 @@ type Props = {
   item: Item;
   scale: number;
   selected: boolean;
-  onSelect: () => void;
-  onDragStart: () => void;
+  /** additive: Shift/⌘-click toggles the piece in the selection. */
+  onSelect: (additive: boolean) => void;
+  onDragStart: (additive: boolean) => void;
   onDragMove: (xMm: number, yMm: number) => void;
   onDragEnd: (xMm: number, yMm: number) => void;
   dragBoundFunc?: (pos: { x: number; y: number }) => { x: number; y: number };
@@ -36,13 +37,18 @@ export default function ItemNode({
 
   return (
     <Group
+      id={`item-${item.id}`}
       x={item.x * scale}
       y={item.y * scale}
       draggable
       dragBoundFunc={dragBoundFunc}
-      onClick={onSelect}
-      onTap={onSelect}
-      onDragStart={onDragStart}
+      onClick={(e: Konva.KonvaEventObject<MouseEvent>) =>
+        onSelect(e.evt.shiftKey || e.evt.metaKey || e.evt.ctrlKey)
+      }
+      onTap={() => onSelect(false)}
+      onDragStart={(e: Konva.KonvaEventObject<DragEvent>) =>
+        onDragStart(e.evt.shiftKey || e.evt.metaKey || e.evt.ctrlKey)
+      }
       onDragMove={(e: Konva.KonvaEventObject<DragEvent>) => {
         const node = e.target;
         onDragMove(node.x() / scale, node.y() / scale);

@@ -128,21 +128,72 @@ function referencedPaths(rooms: Room[]): Set<string> {
   return paths;
 }
 
-async function listRoomFolder(roomId: string): Promise<string[]> {
+type StoredFile = { path: string; createdAt: number | null };
+
+/** Every entry directly under `prefix` ("" for the bucket root), paginated. */
+async function listEntries(prefix: string) {
   const supabase = getServiceClient();
-  if (!supabase || !isSafeId(roomId)) return [];
-  const paths: string[] = [];
+  if (!supabase) return [];
+  const entries: { name: string; id: string | null; created_at?: string | null }[] = [];
   const pageSize = 1000;
   for (let offset = 0; ; offset += pageSize) {
     const { data, error } = await supabase.storage
       .from(IMAGE_BUCKET)
-      .list(roomId, { limit: pageSize, offset });
+      .list(prefix, { limit: pageSize, offset });
     if (error) throw new Error(error.message);
-    for (const f of data ?? []) {
-      if (f.id) paths.push(`${roomId}/${f.name}`); // folders have no id
-    }
-    if (!data || data.length < pageSize) return paths;
+    entries.push(...(data ?? []));
+    if (!data || data.length < pageSize) return entries;
   }
+}
+
+async function listRoomFiles(roomId: string): Promise<StoredFile[]> {
+  if (!isSafeId(roomId)) return [];
+  return (await listEntries(roomId))
+    .filter((f) => f.id) // folders have no id
+    .map((f) => ({
+      path: `${roomId}/${f.name}`,
+      createdAt: f.created_at ? Date.parse(f.created_at) : null,
+    }));
+}
+
+async function listRoomFolder(roomId: string): Promise<string[]> {
+  return (await listRoomFiles(roomId)).map((f) => f.path);
+}
+
+async function removePaths(paths: string[]): Promise<void> {
+  const supabase = getServiceClient();
+  if (!supabase) return;
+  for (let i = 0; i < paths.length; i += 100) {
+    const { error } = await supabase.storage.from(IMAGE_BUCKET).remove(paths.slice(i, i + 100));
+    if (error) throw new Error(error.message);
+  }
+}
+
+/**
+ * Delete stored images no room references, once they're older than
+ * `minAgeMs`. The grace period covers pieces deleted recently: undo and
+ * crash-draft recovery can still bring them back with their images.
+ */
+export async function sweepOrphanedImages(
+  rooms: Room[],
+  { minAgeMs, now = Date.now(), dryRun = false }: { minAgeMs: number; now?: number; dryRun?: boolean },
+): Promise<{ scanned: number; deleted: string[] }> {
+  if (!getServiceClient()) return { scanned: 0, deleted: [] };
+  const keep = referencedPaths(rooms);
+  const folders = (await listEntries("")).filter((e) => !e.id && isSafeId(e.name));
+  let scanned = 0;
+  const doomed: string[] = [];
+  for (const folder of folders) {
+    for (const file of await listRoomFiles(folder.name)) {
+      scanned++;
+      if (keep.has(file.path)) continue;
+      // Unknown age → keep; only delete what is provably old.
+      if (file.createdAt === null || now - file.createdAt < minAgeMs) continue;
+      doomed.push(file.path);
+    }
+  }
+  if (!dryRun) await removePaths(doomed);
+  return { scanned, deleted: doomed };
 }
 
 /**
@@ -158,12 +209,7 @@ export async function deleteUnreferencedRoomImages(
   if (!supabase) return 0;
   const keep = referencedPaths(remainingRooms);
   const doomed = (await listRoomFolder(roomId)).filter((p) => !keep.has(p));
-  for (let i = 0; i < doomed.length; i += 100) {
-    const { error } = await supabase.storage
-      .from(IMAGE_BUCKET)
-      .remove(doomed.slice(i, i + 100));
-    if (error) throw new Error(error.message);
-  }
+  await removePaths(doomed);
   return doomed.length;
 }
 

@@ -367,8 +367,8 @@ function condenseHtml(html: string, sourceUrl: string): string {
 async function callClaudeText(condensed: string): Promise<ExtractedProduct> {
   const client = makeClient();
   const response = await client.messages.parse({
-    model: "claude-opus-4-7",
-    max_tokens: 4000,
+    model: EXTRACTION_MODEL,
+    max_tokens: EXTRACTION_MAX_TOKENS,
     thinking: { type: "adaptive" },
     output_config: {
       effort: "medium",
@@ -377,7 +377,7 @@ async function callClaudeText(condensed: string): Promise<ExtractedProduct> {
     system: SYSTEM_PROMPT,
     messages: [{ role: "user", content: condensed }],
   });
-  return response.parsed_output ?? fallback("Couldn't parse the page — please fill in manually.");
+  return readParsed(response, "Couldn't parse the page — please fill in manually.");
 }
 
 async function callClaudeVision(
@@ -386,8 +386,8 @@ async function callClaudeVision(
 ): Promise<ExtractedProduct> {
   const client = makeClient();
   const response = await client.messages.parse({
-    model: "claude-opus-4-7",
-    max_tokens: 4000,
+    model: EXTRACTION_MODEL,
+    max_tokens: EXTRACTION_MAX_TOKENS,
     thinking: { type: "adaptive" },
     output_config: {
       effort: "medium",
@@ -415,7 +415,31 @@ async function callClaudeVision(
       },
     ],
   });
-  return response.parsed_output ?? fallback("Couldn't read the image — please fill in manually.");
+  return readParsed(response, "Couldn't read the image — please fill in manually.");
+}
+
+// One place to change the extraction model. Claude Opus 5.5 is the current
+// default model and costs less per token than the Opus 4.7 it replaces.
+const EXTRACTION_MODEL = "claude-opus-5-5";
+// Adaptive thinking counts toward max_tokens; leave room so the JSON answer
+// is never cut off after a long think.
+const EXTRACTION_MAX_TOKENS = 16000;
+
+/**
+ * Pull the validated result out of a parse() response, turning refusals and
+ * truncation into a reviewable warning instead of a silent empty result.
+ */
+function readParsed(
+  response: { stop_reason: string | null; parsed_output?: ExtractedProduct | null },
+  unreadable: string,
+): ExtractedProduct {
+  if (response.stop_reason === "refusal") {
+    return fallback("Claude declined to read this listing — please fill in manually.");
+  }
+  if (response.stop_reason === "max_tokens") {
+    return fallback("The listing was too long to finish reading — please fill in manually.");
+  }
+  return response.parsed_output ?? fallback(unreadable);
 }
 
 function makeClient(): Anthropic {

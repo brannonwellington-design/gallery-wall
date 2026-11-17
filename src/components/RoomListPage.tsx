@@ -26,6 +26,7 @@ import {
 } from "@/components/ui/tooltip";
 import BrandedHeader from "./BrandedHeader";
 import LocalTime from "./LocalTime";
+import RoomThumbnail from "./RoomThumbnail";
 
 type Props = {
   initialRooms: RoomSummary[];
@@ -96,9 +97,7 @@ export default function RoomListPage({
       <main className="max-w-[800px] mx-auto px-12 md:px-12 pt-24 pb-24">
         {/* Title-block lockup */}
         <header className="pb-12">
-          <div className="text-caption text-content-disabled mb-2">
-            Index
-          </div>
+          <div className="text-caption text-content-disabled mb-2">Index</div>
           <h1 className="text-display text-content-primary mb-3">
             Gallery Wall
           </h1>
@@ -114,8 +113,7 @@ export default function RoomListPage({
             <Tooltip>
               <TooltipTrigger asChild>
                 <span>
-                  Platform updated{" "}
-                  <LocalTime iso={platformUpdatedAt} />
+                  Platform updated <LocalTime iso={platformUpdatedAt} />
                 </span>
               </TooltipTrigger>
               <TooltipContent>
@@ -142,7 +140,11 @@ export default function RoomListPage({
               Start a new room to plan its layout. You can paste a Society6 or
               Etsy URL and it will pull in size and image for you.
             </p>
-            <NewRoomButton onClick={createRoom} disabled={creating} creating={creating} />
+            <NewRoomButton
+              onClick={createRoom}
+              disabled={creating}
+              creating={creating}
+            />
           </div>
         ) : (
           <>
@@ -150,28 +152,36 @@ export default function RoomListPage({
               {initialRooms.map((room) => (
                 <li
                   key={room.id}
-                  className="flex items-center gap-4 py-4 border-b border-surface-tertiary"
+                  className="flex items-center gap-4 py-3 border-b border-surface-tertiary"
                 >
                   <Link
                     href={`/rooms/${room.id}`}
-                    className="flex-1 min-w-0 flex flex-col gap-1 rounded-sm"
+                    className="group flex-1 min-w-0 flex items-center gap-4 rounded-sm"
                   >
-                    <span className="text-lead text-content-primary truncate">
-                      {room.name || "Untitled room"}
+                    <div className="w-28 shrink-0 sm:w-36 transition-opacity group-hover:opacity-90">
+                      <RoomThumbnail
+                        preview={room.preview}
+                        label={room.name || "Untitled room"}
+                      />
+                    </div>
+                    <span className="min-w-0 flex flex-col gap-1">
+                      <span className="text-lead text-content-primary truncate group-hover:underline underline-offset-4">
+                        {room.name || "Untitled room"}
+                      </span>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <span className="text-label text-content-disabled tabular">
+                            {room.itemCount}{" "}
+                            {room.itemCount === 1 ? "piece" : "pieces"}
+                            {" · "}
+                            {formatEditedLabel(room.updatedAt)}
+                          </span>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          {formatAbsolute(room.updatedAt)}
+                        </TooltipContent>
+                      </Tooltip>
                     </span>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <span className="text-label text-content-disabled tabular">
-                          {room.itemCount}{" "}
-                          {room.itemCount === 1 ? "piece" : "pieces"}
-                          {" · "}
-                          {formatEditedLabel(room.updatedAt)}
-                        </span>
-                      </TooltipTrigger>
-                      <TooltipContent>
-                        {formatAbsolute(room.updatedAt)}
-                      </TooltipContent>
-                    </Tooltip>
                   </Link>
                   <Tooltip>
                     <TooltipTrigger asChild>
@@ -205,7 +215,11 @@ export default function RoomListPage({
                         disabled={pending}
                         aria-label={`Delete ${room.name || "Untitled room"}`}
                       >
-                        <Trash2 size={16} strokeWidth={1.25} aria-hidden="true" />
+                        <Trash2
+                          size={16}
+                          strokeWidth={1.25}
+                          aria-hidden="true"
+                        />
                       </Button>
                     </TooltipTrigger>
                     <TooltipContent>Delete room</TooltipContent>
@@ -240,7 +254,10 @@ export default function RoomListPage({
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction variant="destructive" onClick={() => void confirmDelete()}>
+            <AlertDialogAction
+              variant="destructive"
+              onClick={() => void confirmDelete()}
+            >
               Delete
             </AlertDialogAction>
           </AlertDialogFooter>

@@ -4,6 +4,7 @@ import path from "path";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Room, RoomRecord, RoomSummary } from "./types";
 import { makeDefaultRoom } from "./defaults";
+import { buildRoomPreview } from "./roomPreview";
 import { normalizeRoom } from "./roomMigrations";
 import { getServiceClient } from "./server/supabase";
 
@@ -81,6 +82,7 @@ class SupabaseRepo implements RoomsRepo {
       name: (row.name as string) ?? "Untitled room",
       itemCount: Array.isArray(row.data?.items) ? row.data.items.length : 0,
       updatedAt: row.updated_at as string,
+      preview: previewOf({ name: row.name as string, ...(row.data ?? {}) }),
     }));
   }
   async get(id: string): Promise<RoomRecord | null> {
@@ -243,6 +245,7 @@ class FileRepo implements RoomsRepo {
         name: r.name,
         itemCount: r.data.items.length,
         updatedAt: r.updated_at,
+        preview: previewOf({ name: r.name, ...r.data }),
       }));
   }
 
@@ -320,4 +323,15 @@ function newId(): string {
     for (let i = 0; i < bytes.length; i++) bytes[i] = Math.floor(Math.random() * 256);
   }
   return Buffer.from(bytes).toString("base64url");
+}
+
+/** Thumbnail data for the rooms list; a malformed room just gets none. */
+function previewOf(raw: unknown) {
+  const r = raw as Room;
+  if (!(r?.wallWidth > 0) || !(r?.wallHeight > 0) || !Array.isArray(r.items)) return undefined;
+  try {
+    return buildRoomPreview(r);
+  } catch {
+    return undefined;
+  }
 }

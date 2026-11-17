@@ -87,6 +87,17 @@ export type RoomSummary = {
   name: string;
   itemCount: number;
   updatedAt: string;
+  /** Just enough to draw a thumbnail of the wall on the rooms list. */
+  preview?: RoomPreview;
+};
+
+/** A lightweight, to-scale sketch of a wall (mm). */
+export type RoomPreview = {
+  wallWidth: number;
+  wallHeight: number;
+  /** Outer boxes of the pieces; `image` is null for inline (data:) images. */
+  items: { x: number; y: number; width: number; height: number; image: string | null; frameColor: string | null }[];
+  fixtures: { kind: FixtureKind; x: number; y: number; width: number; height: number }[];
 };
 
 /** Room contents plus persistence metadata. */

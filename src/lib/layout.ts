@@ -18,6 +18,18 @@ type Wall = { width: number; height: number };
 type Rect = { x: number; y: number; w: number; h: number };
 type Position = { id: string; x: number; y: number };
 
+/** Room context the templates respect. */
+export type LayoutContext = {
+  /** Areas art must not overlap (fixtures, clearance above furniture), mm. */
+  obstacles?: { x: number; y: number; width: number; height: number }[];
+  /** Horizontal center for the arrangement (default: wall center). */
+  centerX?: number;
+  /** The arrangement's bottom edge must stay above this y (e.g. over a sofa). */
+  maxBottom?: number;
+};
+
+type Ctx = { obstacles: Rect[]; centerX: number; maxBottom: number };
+
 /** mm of clear space the engine tries to leave between any two pieces. */
 const DEFAULT_GAP_MM = toMm(3, "in");
 
@@ -67,19 +79,25 @@ export function randomizeLayout(
   wall: Wall,
   eyeLineY: number | null,
   gap: number = DEFAULT_GAP_MM,
+  context: LayoutContext = {},
 ): { items: Item[]; template: LayoutTemplate | null } {
+  const ctx: Ctx = {
+    obstacles: (context.obstacles ?? []).map((o) => ({ x: o.x, y: o.y, w: o.width, h: o.height })),
+    centerX: context.centerX ?? wall.width / 2,
+    maxBottom: Math.min(wall.height, context.maxBottom ?? wall.height),
+  };
   const pinned = items.filter((i) => i.pinned);
   const movable = items.filter((i) => !i.pinned);
   if (movable.length === 0) return { items, template: null };
 
-  const targetY = eyeLineY ?? wall.height / 2;
+  const targetY = eyeLineY ?? ctx.maxBottom / 2;
   const order = shuffle<LayoutTemplate>(["salon", "grid", "row"]);
 
   // Progressive gap fallback. Most rooms succeed at the full gap; very
   // dense walls fall back to a tighter gap before failing.
   for (const g of [gap, gap * 0.5, gap * 0.25, 0]) {
     for (const tmpl of order) {
-      const positions = computeLayout(tmpl, movable, pinned, wall, targetY, g);
+      const positions = computeLayout(tmpl, movable, pinned, wall, targetY, g, ctx);
       if (positions) {
         const byId = new Map(positions.map((p) => [p.id, p]));
         return {
@@ -105,15 +123,72 @@ function computeLayout(
   wall: Wall,
   eyeLineY: number,
   gap: number,
+  ctx: Ctx,
 ): Position[] | null {
   switch (tmpl) {
     case "row":
-      return rowLayout(movable, pinned, wall, eyeLineY, gap);
+      return rowLayout(movable, pinned, wall, eyeLineY, gap, ctx);
     case "grid":
-      return gridLayout(movable, pinned, wall, eyeLineY, gap);
+      return gridLayout(movable, pinned, wall, eyeLineY, gap, ctx);
     case "salon":
-      return salonLayout(movable, pinned, wall, eyeLineY, gap);
+      return salonLayout(movable, pinned, wall, eyeLineY, gap, ctx);
   }
+}
+
+// ── Block placement ───────────────────────────────────────────────────
+//
+// Row and grid build the arrangement as one block (positions relative to
+// the block's top-left). The block goes at its preferred spot — centered
+// on ctx.centerX, around the eye line, above ctx.maxBottom — or, if a
+// pinned piece or fixture is in the way, at the nearest spot that's clear.
+
+type Placed = { id: string; dx: number; dy: number; w: number; h: number };
+
+function placeBlock(
+  placed: Placed[],
+  blockW: number,
+  blockH: number,
+  wall: Wall,
+  eyeLineY: number,
+  gap: number,
+  ctx: Ctx,
+  pinned: Item[],
+): Position[] | null {
+  const maxX = wall.width - blockW;
+  const maxY = ctx.maxBottom - blockH;
+  if (maxX < 0 || maxY < 0) return null;
+  const occupied = [...pinned.map(itemRect), ...ctx.obstacles];
+  const fits = (bx: number, by: number) =>
+    placed.every(
+      (p) =>
+        !occupied.some((o) =>
+          overlaps(expand({ x: bx + p.dx, y: by + p.dy, w: p.w, h: p.h }, gap), o),
+        ),
+    );
+  const prefX = clamp(ctx.centerX - blockW / 2, 0, maxX);
+  const prefY = clamp(eyeLineY - blockH / 2, 0, maxY);
+  const at = (bx: number, by: number) =>
+    placed.map((p) => ({ id: p.id, x: bx + p.dx, y: by + p.dy }));
+  if (fits(prefX, prefY)) return at(prefX, prefY);
+  if (occupied.length === 0) return null;
+
+  // Search a 1" lattice, nearest to the preferred spot first. Vertical
+  // moves cost a little more than horizontal so the block stays near eye
+  // level when it can slide sideways instead.
+  const step = toMm(1, "in");
+  const candidates: { x: number; y: number; d: number }[] = [];
+  for (let by = 0; by <= maxY + 0.01; by += step) {
+    for (let bx = 0; bx <= maxX + 0.01; bx += step) {
+      const dx = bx - prefX;
+      const dy = (by - prefY) * 1.5;
+      candidates.push({ x: bx, y: by, d: dx * dx + dy * dy });
+    }
+  }
+  candidates.sort((a, b) => a.d - b.d);
+  for (const c of candidates) {
+    if (fits(c.x, c.y)) return at(c.x, c.y);
+  }
+  return null;
 }
 
 // ── Row: greedy multi-row packing ─────────────────────────────────────
@@ -129,6 +204,7 @@ function rowLayout(
   wall: Wall,
   eyeLineY: number,
   gap: number,
+  ctx: Ctx,
 ): Position[] | null {
   const order = shuffle(movable);
 
@@ -153,26 +229,23 @@ function rowLayout(
 
   const totalH =
     rows.reduce((s, r) => s + r.height, 0) + (rows.length - 1) * gap;
-  if (totalH > wall.height) return null;
+  if (totalH > ctx.maxBottom) return null;
 
-  let yCursor = clamp(eyeLineY - totalH / 2, 0, wall.height - totalH);
-  const positions: Position[] = [];
-  const occupied = pinned.map(itemRect);
+  // Lay rows out inside a block, each row centered in the block.
+  const blockW = Math.max(...rows.map((r) => r.width));
+  const placed: Placed[] = [];
+  let yCursor = 0;
   for (const row of rows) {
-    let xCursor = (wall.width - row.width) / 2;
+    let xCursor = (blockW - row.width) / 2;
     for (const it of row.items) {
       const w = itemW(it);
       const h = itemH(it);
-      const y = yCursor + (row.height - h) / 2; // vertical-center within row
-      const rect: Rect = { x: xCursor, y, w, h };
-      if (occupied.some((o) => overlaps(expand(rect, gap), o))) return null;
-      positions.push({ id: it.id, x: xCursor, y });
-      occupied.push(rect);
+      placed.push({ id: it.id, dx: xCursor, dy: yCursor + (row.height - h) / 2, w, h });
       xCursor += w + gap;
     }
     yCursor += row.height + gap;
   }
-  return positions;
+  return placeBlock(placed, blockW, totalH, wall, eyeLineY, gap, ctx, pinned);
 }
 
 // ── Grid: search for a valid (cols, rows) shape ───────────────────────
@@ -190,6 +263,7 @@ function gridLayout(
   wall: Wall,
   eyeLineY: number,
   gap: number,
+  ctx: Ctx,
 ): Position[] | null {
   const count = movable.length;
   const maxW = Math.max(...movable.map(itemW));
@@ -212,7 +286,7 @@ function gridLayout(
     const rows = Math.ceil(count / cols);
     const gridW = cols * maxW + (cols - 1) * gap;
     const gridH = rows * maxH + (rows - 1) * gap;
-    if (gridH > wall.height) continue;
+    if (gridH > ctx.maxBottom) continue;
     const score = Math.abs(gridW / gridH - wallAspect);
     if (!best || score < best.score) {
       best = { cols, rows, gridW, gridH, score };
@@ -221,34 +295,27 @@ function gridLayout(
   if (!best) return null;
 
   const { cols, gridW, gridH } = best;
-  const startX = (wall.width - gridW) / 2;
-  const startY = clamp(eyeLineY - gridH / 2, 0, wall.height - gridH);
-
   const order = shuffle(movable);
-  const positions: Position[] = [];
-  const occupied = pinned.map(itemRect);
-  for (let i = 0; i < order.length; i++) {
-    const it = order[i];
+  const placed: Placed[] = order.map((it, i) => {
     const r = Math.floor(i / cols);
     const c = i % cols;
-    const cellX = startX + c * (maxW + gap);
-    const cellY = startY + r * (maxH + gap);
-    const x = cellX + (maxW - itemW(it)) / 2;
-    const y = cellY + (maxH - itemH(it)) / 2;
-    const rect: Rect = { x, y, w: itemW(it), h: itemH(it) };
-    if (occupied.some((o) => overlaps(expand(rect, gap), o))) return null;
-    positions.push({ id: it.id, x, y });
-    occupied.push(rect);
-  }
-  return positions;
+    return {
+      id: it.id,
+      dx: c * (maxW + gap) + (maxW - itemW(it)) / 2,
+      dy: r * (maxH + gap) + (maxH - itemH(it)) / 2,
+      w: itemW(it),
+      h: itemH(it),
+    };
+  });
+  return placeBlock(placed, gridW, gridH, wall, eyeLineY, gap, ctx, pinned);
 }
 
 // ── Salon: anchor + grid-search candidates ────────────────────────────
 //
 // Old version was pure rejection sampling at 200 attempts/piece — too
 // noisy to reliably place 20+ pieces. New version generates a regular
-// grid of candidate positions (step = gap), shuffles, and walks them
-// for each piece. Guarantees finding any valid placement if one exists
+// grid of candidate positions (step = gap) and, for each piece, walks
+// them nearest-first from the cluster's center. Guarantees finding any valid placement if one exists
 // on the candidate lattice. Anchor is the biggest piece, centered with
 // slight horizontal jitter so successive runs vary.
 
@@ -258,10 +325,11 @@ function salonLayout(
   wall: Wall,
   eyeLineY: number,
   gap: number,
+  ctx: Ctx,
 ): Position[] | null {
   const sorted = [...movable].sort((a, b) => area(b) - area(a));
   const positions: Position[] = [];
-  const occupied: Rect[] = pinned.map(itemRect);
+  const occupied: Rect[] = [...pinned.map(itemRect), ...ctx.obstacles];
 
   // Anchor: biggest piece, slight horizontal jitter near center.
   const anchor = sorted[0];
@@ -269,16 +337,25 @@ function salonLayout(
   const ah = itemH(anchor);
   const anchorJitter = (Math.random() - 0.5) * 0.1 * wall.width;
   const anchorX = clamp(
-    wall.width / 2 - aw / 2 + anchorJitter,
+    ctx.centerX - aw / 2 + anchorJitter,
     0,
     wall.width - aw,
   );
-  const anchorY = clamp(eyeLineY - ah / 2, 0, wall.height - ah);
-  const anchorRect: Rect = { x: anchorX, y: anchorY, w: aw, h: ah };
-  if (pinned.some((p) => overlaps(expand(anchorRect, gap), itemRect(p)))) {
-    return null;
-  }
-  positions.push({ id: anchor.id, x: anchorX, y: anchorY });
+  const anchorY = clamp(eyeLineY - ah / 2, 0, ctx.maxBottom - ah);
+  // If something's in the way, move the anchor to the nearest clear spot.
+  const anchorSpot = placeBlock(
+    [{ id: anchor.id, dx: 0, dy: 0, w: aw, h: ah }],
+    aw,
+    ah,
+    wall,
+    anchorY + ah / 2,
+    gap,
+    { ...ctx, centerX: anchorX + aw / 2, obstacles: occupied },
+    [],
+  );
+  if (!anchorSpot) return null;
+  const anchorRect: Rect = { x: anchorSpot[0].x, y: anchorSpot[0].y, w: aw, h: ah };
+  positions.push({ id: anchor.id, x: anchorRect.x, y: anchorRect.y });
   occupied.push(anchorRect);
 
   // Candidate lattice. Step = max(20mm, gap) — fine enough to find tight
@@ -291,17 +368,32 @@ function salonLayout(
     }
   }
 
+  // Salon walls read as one tight cluster, so each piece goes at the open
+  // spot nearest the cluster's current center (with a little jitter so
+  // runs differ) — never below the furniture line.
+  const art: Rect[] = [anchorRect];
   for (const it of sorted.slice(1)) {
     const w = itemW(it);
     const h = itemH(it);
-    const tried = shuffle(candidates);
+    const cx = art.reduce((sum, r) => sum + r.x + r.w / 2, 0) / art.length;
+    const cy = art.reduce((sum, r) => sum + r.y + r.h / 2, 0) / art.length;
+    const jitter = step * 3;
+    const tried = candidates
+      .map((c) => {
+        const dx = c.x + w / 2 - cx + (Math.random() - 0.5) * jitter;
+        const dy = c.y + h / 2 - cy + (Math.random() - 0.5) * jitter;
+        return { c, d: dx * dx + dy * dy };
+      })
+      .sort((a, b) => a.d - b.d);
     let placed = false;
-    for (const c of tried) {
+    for (const { c } of tried) {
       const rect: Rect = { x: c.x, y: c.y, w, h };
       if (!withinWall(rect, wall)) continue;
+      if (rect.y + rect.h > ctx.maxBottom) continue;
       if (occupied.some((o) => overlaps(expand(rect, gap), o))) continue;
       positions.push({ id: it.id, x: c.x, y: c.y });
       occupied.push(rect);
+      art.push(rect);
       placed = true;
       break;
     }

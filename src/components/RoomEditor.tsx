@@ -3,7 +3,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import type Konva from "konva";
-import type { Frame, Item, Room, Unit } from "@/lib/types";
+import type { Fixture, FixtureKind, Frame, Item, Room, Unit } from "@/lib/types";
+import { constrainFixture, layoutContextFor, makeFixture } from "@/lib/fixtures";
 import { DEFAULT_EYE_LINE_HEIGHT_MM } from "@/lib/defaults";
 import { eyeLine } from "@/lib/geometry";
 import { randomizeLayout } from "@/lib/layout";
@@ -19,6 +20,7 @@ import { useHistory } from "@/lib/useHistory";
 import { useRoomAutosave } from "@/lib/useRoomAutosave";
 import AddItemForm from "./AddItemForm";
 import EditItemPanel from "./EditItemPanel";
+import FixturesPanel from "./FixturesPanel";
 import ItemsList from "./ItemsList";
 import Toolbar from "./Toolbar";
 import { useBackgroundRemoval } from "./editor/useBackgroundRemoval";
@@ -66,7 +68,20 @@ export default function RoomEditor({
     canUndo,
     canRedo,
   } = useHistory<Room>(initialRoom);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [selectedId, setSelectedIdRaw] = useState<string | null>(null);
+  const [selectedFixtureId, setSelectedFixtureId] = useState<string | null>(null);
+  // Selecting a piece and selecting a fixture are mutually exclusive.
+  const setSelectedId = useCallback(
+    (next: string | null | ((prev: string | null) => string | null)) => {
+      setSelectedIdRaw(next);
+      if (typeof next !== "function") setSelectedFixtureId(null);
+    },
+    [],
+  );
+  const selectFixture = useCallback((id: string) => {
+    setSelectedIdRaw(null);
+    setSelectedFixtureId(id);
+  }, []);
   const [snapEnabled, setSnapEnabled] = useState(true);
   const [redlinesEnabled, setRedlinesEnabled] = useState(false);
   const [ready, setReady] = useState(false);
@@ -172,10 +187,37 @@ export default function RoomEditor({
     }));
   }, [setRoom]);
 
+  const addFixture = useCallback(
+    (kind: FixtureKind) => {
+      const id = uid();
+      setRoom((r) => ({ ...r, fixtures: [...(r.fixtures ?? []), makeFixture(kind, r, id)] }));
+      selectFixture(id);
+    },
+    [setRoom, selectFixture],
+  );
+
+  const updateFixture = useCallback(
+    (id: string, patch: Partial<Fixture>) => {
+      setRoom((r) => ({
+        ...r,
+        fixtures: (r.fixtures ?? []).map((f) => (f.id === id ? constrainFixture({ ...f, ...patch }, r) : f)),
+      }));
+    },
+    [setRoom],
+  );
+
+  const removeFixture = useCallback(
+    (id: string) => {
+      setRoom((r) => ({ ...r, fixtures: (r.fixtures ?? []).filter((f) => f.id !== id) }));
+      setSelectedFixtureId((prev) => (prev === id ? null : prev));
+    },
+    [setRoom],
+  );
+
   const removeItem = useCallback((id: string) => {
     setRoom((r) => ({ ...r, items: r.items.filter((it) => it.id !== id) }));
     setSelectedId((prev) => (prev === id ? null : prev));
-  }, [setRoom]);
+  }, [setRoom, setSelectedId]);
 
   const updateItem = useCallback((id: string, patch: Partial<Item>) => {
     setRoom((r) => ({
@@ -207,6 +249,8 @@ export default function RoomEditor({
         r.items,
         { width: r.wallWidth, height: r.wallHeight },
         eyeLine(r)?.y ?? null,
+        undefined,
+        layoutContextFor(r),
       );
       if (!result.template) {
         flashLayoutStatus("Couldn’t fit — try fewer pieces or a bigger wall");
@@ -320,6 +364,14 @@ export default function RoomEditor({
                 ) : null;
               })()}
             <AddItemForm unit={room.unit} onAdd={addItem} />
+            <FixturesPanel
+              room={room}
+              selectedId={selectedFixtureId}
+              onSelect={selectFixture}
+              onAdd={addFixture}
+              onUpdate={updateFixture}
+              onRemove={removeFixture}
+            />
           </ScrollArea>
         </aside>
 
@@ -332,6 +384,9 @@ export default function RoomEditor({
             redlinesEnabled={redlinesEnabled}
             onSelect={setSelectedId}
             onMoveItem={moveItem}
+            selectedFixtureId={selectedFixtureId}
+            onSelectFixture={selectFixture}
+            onMoveFixture={(id, x, y) => updateFixture(id, { x, y })}
           />
         </main>
       </div>

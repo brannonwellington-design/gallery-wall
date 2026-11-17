@@ -49,6 +49,16 @@ const ItemSchema = z.object({
   hanger: HangerSchema.nullable().optional(),
 });
 
+const FixtureSchema = z.object({
+  id: z.string().regex(ID),
+  kind: z.enum(["sofa", "console", "bed", "door", "window", "tv", "outlet", "switch", "sconce", "other"]),
+  label: z.string().max(100).optional(),
+  x: coord,
+  y: coord,
+  width: length.positive(),
+  height: length.positive(),
+});
+
 export const RoomSchema = z.object({
   name: z.string().max(500),
   wallWidth: length.positive(),
@@ -57,6 +67,7 @@ export const RoomSchema = z.object({
   items: z.array(ItemSchema).max(500),
   eyeLineHeight: length.nullable().optional().transform((v) => v ?? undefined),
   eyeLineEnabled: z.boolean().nullable().optional().transform((v) => v ?? undefined),
+  fixtures: z.array(FixtureSchema).max(100).optional(),
 });
 
 export function parseRoom(input: unknown): { ok: true; room: Room } | { ok: false; error: string } {

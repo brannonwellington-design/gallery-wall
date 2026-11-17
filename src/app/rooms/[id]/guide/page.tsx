@@ -120,7 +120,7 @@ function Step({ n, children }: { n: number; children: React.ReactNode }) {
 }
 
 function GuideItem({ row, unit }: { row: GuideRow; unit: Unit }) {
-  const { number, item, rect, hanger, nails, topFromFloor, centerFromFloor, warnings } = row;
+  const { number, item, rect, hanger, nails, topFromFloor, centerFromFloor, above, warnings } = row;
   const hangerText =
     hanger.kind === "pair"
       ? `Two hooks ${formatTape(hanger.spacing, unit)} apart, ${formatTape(hanger.drop, unit)} below the top`
@@ -162,6 +162,7 @@ function GuideItem({ row, unit }: { row: GuideRow; unit: Unit }) {
 
         <p className="mt-2 text-caption text-content-disabled tabular">
           Top of piece {formatTape(topFromFloor, unit)} from the floor · center {formatTape(centerFromFloor, unit)}
+          {above ? ` · ${formatTape(above.gap, unit)} above the ${above.label.toLowerCase()}` : ""}
         </p>
         {warnings.filter((w) => !w.startsWith("Hanger not measured")).map((w) => (
           <p key={w} className="mt-1 text-caption text-content-negative">

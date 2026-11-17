@@ -42,6 +42,31 @@ export type Item = {
   hanger?: Hanger | null;
 };
 
+/** Things on or in front of the wall that art has to work around. */
+export type FixtureKind =
+  | "sofa"
+  | "console"
+  | "bed"
+  | "door"
+  | "window"
+  | "tv"
+  | "outlet"
+  | "switch"
+  | "sconce"
+  | "other";
+
+export type Fixture = {
+  id: string;
+  kind: FixtureKind;
+  /** Optional name shown on the wall, e.g. "Bookshelf". */
+  label?: string;
+  /** mm, same convention as pieces: x from the left, y from the top. */
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+};
+
 export type Room = {
   name: string;
   wallWidth: number;
@@ -53,6 +78,8 @@ export type Room = {
   // dragged pieces snap their vertical center to this height.
   eyeLineHeight?: number;
   eyeLineEnabled?: boolean;
+  // Furniture, doors, windows, outlets etc. Absent on older rooms.
+  fixtures?: Fixture[];
 };
 
 export type RoomSummary = {

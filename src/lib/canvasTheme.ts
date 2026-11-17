@@ -25,6 +25,9 @@ export const WALL_INK = {
   redline: "#B82214", // content-negative
   mat: "#FBF9F4", // surface-highlight (light)
   placeholder: "#E2DCCF", // surface-tertiary (light)
+  fixture: "#EEE8DD", // surface-secondary (light)
+  fixtureShade: "#E2DCCF", // surface-tertiary (light)
+  fixtureStroke: "#B6B4AF", // content-disabled
 } as const;
 
 export type CanvasChrome = {

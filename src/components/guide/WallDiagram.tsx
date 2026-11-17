@@ -1,3 +1,4 @@
+import { fixtureLabel } from "@/lib/fixtures";
 import { eyeLine, framePadding } from "@/lib/geometry";
 import type { GuideRow } from "@/lib/hangingGuide";
 import type { Room } from "@/lib/types";
@@ -54,6 +55,33 @@ export default function WallDiagram({ room, rows }: Props) {
           </text>
         </g>
       ) : null}
+
+      {(room.fixtures ?? []).map((f) => (
+        <g key={f.id}>
+          <rect
+            x={f.x}
+            y={f.y}
+            width={f.width}
+            height={f.height}
+            fill={f.kind === "tv" ? "#1F1B14" : f.kind === "window" ? "#EEF2F6" : "#EEE8DD"}
+            stroke="var(--content-disabled)"
+            strokeWidth={unit / 1500}
+            strokeDasharray={f.kind === "other" ? `${font * 0.4} ${font * 0.3}` : undefined}
+          />
+          {f.width > font * 4 && f.height > font * 1.5 ? (
+            <text
+              x={f.x + f.width / 2}
+              y={f.y + f.height / 2}
+              fontSize={font * 0.8}
+              textAnchor="middle"
+              dominantBaseline="central"
+              fill={f.kind === "tv" ? "#F9F4EB" : "var(--content-secondary)"}
+            >
+              {fixtureLabel(f)}
+            </text>
+          ) : null}
+        </g>
+      ))}
 
       {rows.map(({ number, item, rect, nails }) => {
         const pad = framePadding(item);

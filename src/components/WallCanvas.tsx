@@ -3,12 +3,14 @@
 import { forwardRef, useCallback, useEffect, useRef, useState } from "react";
 import { Stage, Layer, Rect, Line, Text, Group } from "react-konva";
 import type Konva from "konva";
-import type { Item, Room } from "@/lib/types";
+import type { Fixture, Item, Room } from "@/lib/types";
+import { constrainFixture, keepOutRect } from "@/lib/fixtures";
 import { useCanvasChrome, WALL_INK } from "@/lib/canvasTheme";
 import { eyeLine, outerRect } from "@/lib/geometry";
 import { formatLength } from "@/lib/units";
 import { computeSnap, type Guide, type Rect as SnapRect } from "@/lib/snap";
 import { computeSpacingSegments, type SpacingSegment } from "@/lib/spacing";
+import FixtureNode from "./FixtureNode";
 import ItemNode from "./ItemNode";
 
 type Props = {
@@ -18,6 +20,9 @@ type Props = {
   redlinesEnabled: boolean;
   onSelect: (id: string | null) => void;
   onMoveItem: (id: string, xMm: number, yMm: number) => void;
+  selectedFixtureId: string | null;
+  onSelectFixture: (id: string) => void;
+  onMoveFixture: (id: string, xMm: number, yMm: number) => void;
 };
 
 const PADDING = 56;
@@ -27,7 +32,17 @@ const REDLINE = WALL_INK.redline;
 const itemRect = outerRect;
 
 const WallCanvas = forwardRef<Konva.Stage, Props>(function WallCanvas(
-  { room, selectedId, snapEnabled, redlinesEnabled, onSelect, onMoveItem },
+  {
+    room,
+    selectedId,
+    snapEnabled,
+    redlinesEnabled,
+    onSelect,
+    onMoveItem,
+    selectedFixtureId,
+    onSelectFixture,
+    onMoveFixture,
+  },
   ref,
 ) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -104,6 +119,18 @@ const WallCanvas = forwardRef<Konva.Stage, Props>(function WallCanvas(
   const offsetX = (size.w - wallPxW) / 2;
   const offsetY = (size.h - wallPxH) / 2;
 
+  const fixtures = room.fixtures ?? [];
+  const wallSize = { wallWidth: room.wallWidth, wallHeight: room.wallHeight };
+
+  const fixtureDragBound =
+    (fixture: Fixture) => (pos: { x: number; y: number }) => {
+      const moved = constrainFixture(
+        { ...fixture, x: (pos.x - offsetX) / scale, y: (pos.y - offsetY) / scale },
+        wallSize,
+      );
+      return { x: offsetX + moved.x * scale, y: offsetY + moved.y * scale };
+    };
+
   const eye = eyeLine(room);
   const eyeLineY = eye?.y ?? null;
 
@@ -124,9 +151,13 @@ const WallCanvas = forwardRef<Konva.Stage, Props>(function WallCanvas(
         width: rect.width,
         height: rect.height,
       };
-      const others = room.items
-        .filter((it) => it.id !== item.id)
-        .map(itemRect);
+      const others = [
+        ...room.items.filter((it) => it.id !== item.id).map(itemRect),
+        // Fixtures: align to their edges and centers. For furniture the
+        // keep-out rect's top edge is the "8 in above" line, so a piece's
+        // bottom snaps to the recommended hanging height.
+        ...fixtures.map(keepOutRect),
+      ];
       const result = computeSnap({
         dragged,
         others,
@@ -204,6 +235,22 @@ const WallCanvas = forwardRef<Konva.Stage, Props>(function WallCanvas(
               stroke={WALL_INK.edge}
               strokeWidth={1}
             />
+          </Layer>
+
+          {/* Fixtures sit on the wall, under the art. */}
+          <Layer x={offsetX} y={offsetY}>
+            {fixtures.map((f) => (
+              <FixtureNode
+                key={f.id}
+                fixture={f}
+                scale={scale}
+                selected={f.id === selectedFixtureId}
+                unitLabel={room.unit === "in" ? "\u2033" : " cm"}
+                onSelect={() => onSelectFixture(f.id)}
+                onDragEnd={(x, y) => onMoveFixture(f.id, x, y)}
+                dragBoundFunc={fixtureDragBound(f)}
+              />
+            ))}
           </Layer>
 
           {/* Items (positioned relative to wall origin) */}

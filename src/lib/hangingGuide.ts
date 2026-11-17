@@ -3,6 +3,7 @@
 // the way you'd use a tape — from the wall's left edge and up from the floor.
 // Pure logic; the guide page renders it.
 
+import { fixtureLabel, isFurniture } from "./fixtures";
 import { hangerOf, nailPoints, outerRect, type NailPoint, type Rect } from "./geometry";
 import type { Hanger, Item, Room } from "./types";
 
@@ -16,8 +17,13 @@ export type GuideRow = {
   topFromFloor: number;
   /** mm from the floor to the piece's center (the "57 inch" number). */
   centerFromFloor: number;
+  /** Furniture directly below the piece and the gap to it, if any. */
+  above: { label: string; gap: number } | null;
   warnings: string[];
 };
+
+/** Under this gap above furniture, art reads as cramped (8" is typical). */
+const MIN_FURNITURE_GAP_MM = 6 * 25.4;
 
 const EPS = 0.5; // mm
 
@@ -48,6 +54,24 @@ export function buildHangingGuide(room: Room): GuideRow[] {
       (other) => other.id !== item.id && overlaps(rect, outerRect(other)),
     );
     if (overlapsOther) warnings.push("Overlaps another piece");
+    const fixtures = room.fixtures ?? [];
+    for (const f of fixtures) {
+      if (overlaps(rect, { x: f.x, y: f.y, width: f.width, height: f.height })) {
+        warnings.push(`Covers the ${fixtureLabel(f).toLowerCase()}`);
+      }
+    }
+    // Nearest furniture below the piece that it overlaps horizontally.
+    const below = fixtures
+      .filter(isFurniture)
+      .filter((f) => f.x < rect.x + rect.width - EPS && rect.x < f.x + f.width - EPS)
+      .filter((f) => f.y >= rect.y + rect.height - EPS)
+      .sort((a, b) => a.y - b.y)[0];
+    const above = below
+      ? { label: fixtureLabel(below), gap: below.y - (rect.y + rect.height) }
+      : null;
+    if (above && above.gap < MIN_FURNITURE_GAP_MM) {
+      warnings.push(`Close to the ${above.label.toLowerCase()} — 8\u2033 above is typical`);
+    }
     const hanger = hangerOf(item);
     if (hanger.assumed) warnings.push("Hanger not measured — nail height assumes 2″ wire drop");
     return {
@@ -58,6 +82,7 @@ export function buildHangingGuide(room: Room): GuideRow[] {
       nails,
       topFromFloor: room.wallHeight - rect.y,
       centerFromFloor: room.wallHeight - (rect.y + rect.height / 2),
+      above,
       warnings,
     };
   });

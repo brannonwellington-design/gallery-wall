@@ -19,6 +19,7 @@ export function roomFingerprint(room: Room): string {
     unit: room.unit,
     eyeLineHeight: room.eyeLineHeight ?? null,
     eyeLineEnabled: room.eyeLineEnabled ?? null,
+    fixtures: room.fixtures ?? [],
     items: room.items.map((it) => ({
       id: it.id,
       name: it.name,

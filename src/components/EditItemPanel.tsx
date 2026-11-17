@@ -3,7 +3,8 @@
 import { useEffect, useRef, useState } from "react";
 import { ArrowLeftRight, Pin, PinOff, X } from "lucide-react";
 import type { Frame, Item, Unit } from "@/lib/types";
-import { fromMm, toMm } from "@/lib/units";
+import { DEFAULT_FRAME } from "@/lib/defaults";
+import { fromMm, toInput, toMm } from "@/lib/units";
 import { downscaleImage } from "@/lib/image";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -24,7 +25,6 @@ type Props = {
   onClose: () => void;
 };
 
-const DEFAULT_FRAME_COLOR = "#1f1f1f";
 
 export default function EditItemPanel({
   item,
@@ -41,10 +41,10 @@ export default function EditItemPanel({
     fromMm(item.artHeight, unit).toFixed(1),
   );
   const [matInput, setMatInput] = useState(() =>
-    item.frame ? fromMm(item.frame.matWidth, unit).toFixed(2) : "2",
+    toInput(item.frame?.matWidth ?? DEFAULT_FRAME.matWidth, unit),
   );
   const [frameInput, setFrameInput] = useState(() =>
-    item.frame ? fromMm(item.frame.frameWidth, unit).toFixed(2) : "0.75",
+    toInput(item.frame?.frameWidth ?? DEFAULT_FRAME.frameWidth, unit),
   );
   const fileInput = useRef<HTMLInputElement>(null);
 
@@ -54,8 +54,8 @@ export default function EditItemPanel({
     setWidth(fromMm(item.artWidth, unit).toFixed(1));
     setHeight(fromMm(item.artHeight, unit).toFixed(1));
     if (item.frame) {
-      setMatInput(fromMm(item.frame.matWidth, unit).toFixed(2));
-      setFrameInput(fromMm(item.frame.frameWidth, unit).toFixed(2));
+      setMatInput(toInput(item.frame.matWidth, unit));
+      setFrameInput(toInput(item.frame.frameWidth, unit));
     }
   }, [item.id, item.name, item.artWidth, item.artHeight, item.frame, unit]);
 
@@ -88,9 +88,7 @@ export default function EditItemPanel({
       onUpdate(item.id, { frame: null });
     } else {
       const defaultFrame: Frame = {
-        matWidth: toMm(2, "in"),
-        frameWidth: toMm(0.75, "in"),
-        frameColor: DEFAULT_FRAME_COLOR,
+        ...DEFAULT_FRAME,
       };
       onUpdate(item.id, { frame: defaultFrame });
     }
@@ -138,10 +136,10 @@ export default function EditItemPanel({
     <div className="flex flex-col gap-4 px-6 py-5 border-t border-surface-tertiary bg-surface-highlight">
       <div className="flex items-center justify-between">
         <div>
-          <div className="text-[10px] leading-4 text-content-disabled mb-0.5">
+          <div className="text-caption text-content-disabled mb-0.5">
             Editing
           </div>
-          <div className="text-[14px] leading-5 text-content-primary truncate max-w-[200px]">
+          <div className="text-body text-content-primary truncate max-w-[200px]">
             {item.name}
           </div>
         </div>
@@ -171,7 +169,7 @@ export default function EditItemPanel({
         <Button
           type="button"
           variant="link"
-          className="h-auto px-0 text-[12px] leading-4"
+          className="h-auto px-0 text-label"
           onClick={() => fileInput.current?.click()}
         >
           Replace image
@@ -193,7 +191,7 @@ export default function EditItemPanel({
           <Toggle
             pressed={!!item.pinned}
             onPressedChange={onTogglePin}
-            className="self-start px-3 text-[12px] leading-4"
+            className="self-start px-3 text-label"
             aria-label={item.pinned ? "Unpin piece" : "Pin position"}
           >
             {item.pinned ? (
@@ -264,7 +262,7 @@ export default function EditItemPanel({
         />
         <Label
           htmlFor="edit-add-frame"
-          className="text-[12px] leading-4 text-content-primary cursor-pointer"
+          className="text-label text-content-primary cursor-pointer"
         >
           Add a frame
         </Label>

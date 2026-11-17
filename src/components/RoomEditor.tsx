@@ -5,7 +5,7 @@ import dynamic from "next/dynamic";
 import type Konva from "konva";
 import type { Frame, Item, Room, Unit } from "@/lib/types";
 import { DEFAULT_EYE_LINE_HEIGHT_MM } from "@/lib/defaults";
-import { cropToOpaqueBounds, downscaleTransparentImage } from "@/lib/image";
+import { eyeLine } from "@/lib/geometry";
 import { randomizeLayout } from "@/lib/layout";
 import { clearDraft, loadDraft } from "@/lib/roomDraft";
 import {
@@ -15,13 +15,15 @@ import {
 } from "@/lib/externalizeClient";
 import { roomFingerprint } from "@/lib/roomFingerprint";
 import { normalizeRoom } from "@/lib/roomMigrations";
-import { toMm } from "@/lib/units";
 import { useHistory } from "@/lib/useHistory";
 import { useRoomAutosave } from "@/lib/useRoomAutosave";
 import AddItemForm from "./AddItemForm";
 import EditItemPanel from "./EditItemPanel";
 import ItemsList from "./ItemsList";
 import Toolbar from "./Toolbar";
+import { useBackgroundRemoval } from "./editor/useBackgroundRemoval";
+import { useEditorShortcuts } from "./editor/useEditorShortcuts";
+import { useWallExport } from "./editor/useWallExport";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -42,12 +44,6 @@ function uid(): string {
   return crypto.randomUUID();
 }
 
-const ARROWS: Record<string, [number, number]> = {
-  ArrowLeft: [-1, 0],
-  ArrowRight: [1, 0],
-  ArrowUp: [0, -1],
-  ArrowDown: [0, 1],
-};
 
 type Props = {
   roomId: string;
@@ -207,21 +203,10 @@ export default function RoomEditor({
 
   const randomize = useCallback(() => {
     setRoom((r) => {
-      const eyeLineEnabled = r.eyeLineEnabled ?? true;
-      const eyeLineHeight = r.eyeLineHeight ?? DEFAULT_EYE_LINE_HEIGHT_MM;
-      // Eye line is stored as distance from floor; layout engine wants
-      // y from the top of the wall. Clamp onto the wall when the
-      // requested height is taller than the wall itself.
-      const eyeLineY = (() => {
-        if (!eyeLineEnabled || !(eyeLineHeight > 0) || !(r.wallHeight > 0)) {
-          return null;
-        }
-        return Math.max(0, Math.min(r.wallHeight - eyeLineHeight, r.wallHeight));
-      })();
       const result = randomizeLayout(
         r.items,
         { width: r.wallWidth, height: r.wallHeight },
-        eyeLineY,
+        eyeLine(r)?.y ?? null,
       );
       if (!result.template) {
         flashLayoutStatus("Couldn’t fit — try fewer pieces or a bigger wall");
@@ -232,160 +217,10 @@ export default function RoomEditor({
     });
   }, [setRoom]);
 
-  const [bgBusyId, setBgBusyId] = useState<string | null>(null);
-  const [bgError, setBgError] = useState<string | null>(null);
-
-  const toggleBackground = useCallback(
-    async (id: string) => {
-      const item = room.items.find((i) => i.id === id);
-      if (!item) return;
-
-      // If the original is stashed, restore it (and the pre-crop dims, if
-      // we shrank them) without a network call.
-      if (item.imageOriginalSrc) {
-        setRoom((r) => ({
-          ...r,
-          items: r.items.map((it) =>
-            it.id === id
-              ? {
-                  ...it,
-                  imageSrc: it.imageOriginalSrc!,
-                  imageOriginalSrc: null,
-                  artWidth: it.artWidthOriginal ?? it.artWidth,
-                  artHeight: it.artHeightOriginal ?? it.artHeight,
-                  artWidthOriginal: null,
-                  artHeightOriginal: null,
-                }
-              : it,
-          ),
-        }));
-        return;
-      }
-
-      setBgBusyId(id);
-      setBgError(null);
-      try {
-        const res = await fetch("/api/remove-background", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ imageDataUrl: item.imageSrc }),
-        });
-        const data = (await res.json()) as {
-          imageDataUrl?: string;
-          error?: string;
-        };
-        if (!res.ok || !data.imageDataUrl) {
-          throw new Error(data.error || `Failed (${res.status})`);
-        }
-        // Auto-crop transparent padding so frame/matte hug the actual art,
-        // and shrink physical dims by the same ratio to preserve on-wall
-        // size. If the result is already tight, crop returns null and we
-        // keep dims unchanged.
-        let finalImage = data.imageDataUrl;
-        let widthRatio = 1;
-        let heightRatio = 1;
-        try {
-          const cropped = await cropToOpaqueBounds(data.imageDataUrl);
-          if (cropped) {
-            finalImage = cropped.dataUrl;
-            widthRatio = cropped.widthRatio;
-            heightRatio = cropped.heightRatio;
-          }
-        } catch {
-          // Crop failures shouldn't block the bg-removal result.
-        }
-        // Cap PNG size so rooms stay under the PATCH body limit.
-        try {
-          finalImage = await downscaleTransparentImage(finalImage);
-        } catch {
-          // Keep the full PNG if downscale fails.
-        }
-        setRoom((r) => ({
-          ...r,
-          items: r.items.map((it) => {
-            if (it.id !== id) return it;
-            const cropped = widthRatio < 1 || heightRatio < 1;
-            return {
-              ...it,
-              imageOriginalSrc: it.imageSrc,
-              imageSrc: finalImage,
-              ...(cropped
-                ? {
-                    artWidthOriginal: it.artWidth,
-                    artHeightOriginal: it.artHeight,
-                    artWidth: it.artWidth * widthRatio,
-                    artHeight: it.artHeight * heightRatio,
-                  }
-                : {}),
-            };
-          }),
-        }));
-      } catch (e) {
-        setBgError(
-          `Couldn’t remove the background for “${item.name || "Untitled"}”: ${
-            e instanceof Error ? e.message : "Unknown error"
-          }`,
-        );
-      } finally {
-        setBgBusyId(null);
-      }
-    },
-    [room.items, setRoom],
-  );
-
-  // Global Undo / Redo shortcuts (Cmd/Ctrl+Z, Cmd/Ctrl+Shift+Z).
-  // Works any time the user isn't typing into an input.
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      const t = e.target as HTMLElement | null;
-      const tag = t?.tagName;
-      if (tag === "INPUT" || tag === "TEXTAREA" || t?.isContentEditable) return;
-      const meta = e.metaKey || e.ctrlKey;
-      if (!meta) return;
-      const key = e.key.toLowerCase();
-      if (key === "z") {
-        e.preventDefault();
-        if (e.shiftKey) redo();
-        else undo();
-      } else if (key === "y") {
-        // Windows convention
-        e.preventDefault();
-        redo();
-      }
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [undo, redo]);
-
-  // Keyboard shortcuts when an item is selected.
-  useEffect(() => {
-    if (!selectedId) return;
-    const onKey = (e: KeyboardEvent) => {
-      const tag = (e.target as HTMLElement | null)?.tagName;
-      if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
-      if (e.key === "Delete" || e.key === "Backspace") {
-        e.preventDefault();
-        removeItem(selectedId);
-        return;
-      }
-      const arrow = ARROWS[e.key];
-      if (!arrow) return;
-      e.preventDefault();
-      let amount = 1;
-      if (e.shiftKey) amount = 0.1;
-      else if (e.metaKey || e.ctrlKey) amount = 5;
-      const dxMm = arrow[0] * toMm(amount, room.unit);
-      const dyMm = arrow[1] * toMm(amount, room.unit);
-      setRoom((r) => ({
-        ...r,
-        items: r.items.map((it) =>
-          it.id === selectedId ? { ...it, x: it.x + dxMm, y: it.y + dyMm } : it,
-        ),
-      }));
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [selectedId, removeItem, room.unit, setRoom]);
+  const { bgBusyId, bgError, dismissBgError, toggleBackground } =
+    useBackgroundRemoval(room.items, setRoom);
+  useEditorShortcuts({ undo, redo, selectedId, unit: room.unit, removeItem, setRoom });
+  const { exportPNG, exportPDF } = useWallExport(stageRef, room.name);
 
   function requestClearWall() {
     setClearOpen(true);
@@ -395,29 +230,6 @@ export default function RoomEditor({
     setRoom((r) => ({ ...r, items: [] }));
     setSelectedId(null);
     setClearOpen(false);
-  }
-
-  function exportPNG() {
-    const stage = stageRef.current;
-    if (!stage) return;
-    const dataUrl = stage.toDataURL({ pixelRatio: 2 });
-    const a = document.createElement("a");
-    a.href = dataUrl;
-    a.download = `${slug(room.name)}.png`;
-    a.click();
-  }
-
-  async function exportPDF() {
-    const stage = stageRef.current;
-    if (!stage) return;
-    const dataUrl = stage.toDataURL({ pixelRatio: 2 });
-    const { jsPDF } = await import("jspdf");
-    const w = stage.width();
-    const h = stage.height();
-    const orientation = w >= h ? "landscape" : "portrait";
-    const pdf = new jsPDF({ orientation, unit: "pt", format: [w, h] });
-    pdf.addImage(dataUrl, "PNG", 0, 0, w, h);
-    pdf.save(`${slug(room.name)}.pdf`);
   }
 
   return (
@@ -460,10 +272,10 @@ export default function RoomEditor({
       <div className="flex flex-1 min-h-0">
         <aside className="w-80 shrink-0 border-r border-surface-tertiary bg-surface-highlight flex flex-col min-h-0">
           <div className="px-6 py-5 border-b border-surface-tertiary">
-            <div className="text-[10px] leading-4 text-content-disabled mb-1">
+            <div className="text-caption text-content-disabled mb-1">
               Catalog
             </div>
-            <h2 className="text-[16px] leading-6 text-content-primary">
+            <h2 className="text-lead text-content-primary">
               Pieces
             </h2>
           </div>
@@ -474,7 +286,7 @@ export default function RoomEditor({
                   <span className="flex-1 break-words">{bgError}</span>
                   <button
                     type="button"
-                    onClick={() => setBgError(null)}
+                    onClick={dismissBgError}
                     className="shrink-0 underline"
                   >
                     Dismiss
@@ -545,12 +357,4 @@ export default function RoomEditor({
 
 function capitalize(s: string): string {
   return s.length > 0 ? s[0].toUpperCase() + s.slice(1) : s;
-}
-
-function slug(s: string): string {
-  return s
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .slice(0, 60) || "gallery-wall";
 }

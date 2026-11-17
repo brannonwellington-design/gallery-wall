@@ -124,7 +124,7 @@ export default function Toolbar({
       {/* Identity + file. pr-14 clears the fixed ThemeToggle (top-4 right-4). */}
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2 px-6 py-2 pr-14">
         <Hint label="Back to rooms">
-          <Button variant="ghost" className="-ml-2 text-[12px] leading-4" asChild>
+          <Button variant="ghost" className="-ml-2 text-label" asChild>
             <Link href="/">
               <ArrowLeft size={14} strokeWidth={1} aria-hidden="true" />
               Rooms
@@ -133,7 +133,7 @@ export default function Toolbar({
         </Hint>
 
         <div className="flex items-center gap-2 min-w-0">
-          <span className="text-[12px] leading-4 text-content-secondary shrink-0 select-none">
+          <span className="text-label text-content-secondary shrink-0 select-none">
             Listen Labs /
           </span>
           <Input
@@ -144,7 +144,7 @@ export default function Toolbar({
             onKeyDown={(e) => {
               if (e.key === "Enter") (e.target as HTMLInputElement).blur();
             }}
-            className="h-8 w-48 min-w-0 border-transparent bg-transparent text-[16px] leading-6 hover:border-border"
+            className="h-8 w-48 min-w-0 border-transparent bg-transparent text-lead hover:border-border"
             aria-label="Room name"
           />
         </div>
@@ -157,7 +157,7 @@ export default function Toolbar({
           />
           {lastEditedAt ? (
             <Hint label={formatAbsolute(lastEditedAt)}>
-              <span className="text-[11px] leading-4 text-content-disabled tabular hidden sm:inline">
+              <span className="text-label text-content-disabled tabular hidden sm:inline">
                 {formatEditedLabel(lastEditedAt)}
               </span>
             </Hint>
@@ -170,7 +170,7 @@ export default function Toolbar({
           <Button
             type="button"
             variant="ghost"
-            className="text-[12px] leading-4"
+            className="text-label"
             onClick={onExportPNG}
           >
             <Download size={14} strokeWidth={1} aria-hidden="true" />
@@ -179,7 +179,7 @@ export default function Toolbar({
           <Button
             type="button"
             variant="ghost"
-            className="text-[12px] leading-4"
+            className="text-label"
             onClick={onExportPDF}
           >
             <FileDown size={14} strokeWidth={1} aria-hidden="true" />
@@ -189,7 +189,7 @@ export default function Toolbar({
             <Button
               type="button"
               variant="ghost"
-              className="text-[12px] leading-4 hover:bg-destructive/10 hover:text-destructive"
+              className="text-label hover:bg-destructive/10 hover:text-destructive"
               onClick={onClear}
             >
               <Trash2 size={14} strokeWidth={1} aria-hidden="true" />
@@ -202,9 +202,9 @@ export default function Toolbar({
       {/* Wall, guides, layout — grouped by whitespace, not hairlines. */}
       <div className="flex flex-wrap items-center gap-x-6 gap-y-2 px-6 py-2 bg-surface-highlight border-t border-surface-tertiary">
         <div className="flex items-center gap-2">
-          <span className="text-[10px] leading-4 text-content-disabled">Wall</span>
+          <span className="text-caption text-content-disabled">Wall</span>
           <NumInput value={wInput} onChange={setWInput} onCommit={commitWall} ariaLabel="Wall width" />
-          <span className="text-[12px] leading-4 text-content-disabled">×</span>
+          <span className="text-label text-content-disabled">×</span>
           <NumInput value={hInput} onChange={setHInput} onCommit={commitWall} ariaLabel="Wall height" />
           <UnitToggle unit={unit} onChange={onChangeUnit} />
         </div>
@@ -214,7 +214,7 @@ export default function Toolbar({
             <Toggle
               pressed={snapEnabled}
               onPressedChange={onChangeSnap}
-              className="px-3 text-[12px] leading-4"
+              className="px-3 text-label"
               aria-label="Snap"
             >
               Snap
@@ -224,7 +224,7 @@ export default function Toolbar({
             <Toggle
               pressed={redlinesEnabled}
               onPressedChange={onChangeRedlines}
-              className="px-3 text-[12px] leading-4"
+              className="px-3 text-label"
               aria-label="Redlines"
             >
               Redlines
@@ -234,7 +234,7 @@ export default function Toolbar({
             <Toggle
               pressed={eyeLineEnabled}
               onPressedChange={onChangeEyeLineEnabled}
-              className="px-3 text-[12px] leading-4"
+              className="px-3 text-label"
               aria-label="Eye line"
             >
               Eye line
@@ -254,7 +254,7 @@ export default function Toolbar({
             <Button
               type="button"
               variant="ghost"
-              className="text-[12px] leading-4"
+              className="text-label"
               onClick={onRandomize}
             >
               <Shuffle size={14} strokeWidth={1} aria-hidden="true" />
@@ -263,7 +263,7 @@ export default function Toolbar({
           </Hint>
           {layoutStatus ? (
             <span
-              className="text-[10px] leading-4 text-content-secondary"
+              className="text-caption text-content-secondary"
               aria-live="polite"
             >
               {layoutStatus}
@@ -373,7 +373,7 @@ function UnitToggle({
         <ToggleGroupItem
           key={u}
           value={u}
-          className="rounded-none text-[12px] leading-4 data-[state=on]:bg-foreground data-[state=on]:text-background"
+          className="rounded-none text-label data-[state=on]:bg-foreground data-[state=on]:text-background"
         >
           {u}
         </ToggleGroupItem>
@@ -431,7 +431,7 @@ function SaveIndicator({
         <Button
           type="button"
           variant="link"
-          className="h-auto px-0 text-[11px] leading-4 text-destructive"
+          className="h-auto px-0 text-label text-destructive"
           onClick={onRetry}
         >
           {status === "conflict" ? "Reload" : "Retry"}

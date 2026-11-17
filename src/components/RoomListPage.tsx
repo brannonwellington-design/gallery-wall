@@ -96,17 +96,17 @@ export default function RoomListPage({
       <main className="max-w-[800px] mx-auto px-12 md:px-12 pt-24 pb-24">
         {/* Title-block lockup */}
         <header className="pb-12">
-          <div className="text-[10px] leading-4 text-content-disabled mb-2">
+          <div className="text-caption text-content-disabled mb-2">
             Index
           </div>
-          <h1 className="text-[48px] leading-[52px] text-content-primary mb-3">
+          <h1 className="text-display text-content-primary mb-3">
             Gallery Wall
           </h1>
-          <p className="text-[16px] leading-6 text-content-secondary mb-6 max-w-[560px]">
+          <p className="text-lead text-content-secondary mb-6 max-w-[560px]">
             Plan gallery walls to scale. Drop in your art, set the wall
             dimensions, and arrange pieces against an eye-level guide.
           </p>
-          <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[12px] leading-4 text-content-disabled tabular">
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-label text-content-disabled tabular">
             <span>
               {count} {count === 1 ? "room" : "rooms"}
             </span>
@@ -135,10 +135,10 @@ export default function RoomListPage({
 
         {initialRooms.length === 0 ? (
           <div className="py-16">
-            <p className="text-[24px] leading-7 text-content-primary mb-3">
+            <p className="text-title text-content-primary mb-3">
               No rooms yet.
             </p>
-            <p className="text-[16px] leading-6 text-content-secondary mb-8 max-w-[480px]">
+            <p className="text-lead text-content-secondary mb-8 max-w-[480px]">
               Start a new room to plan its layout. You can paste a Society6 or
               Etsy URL and it will pull in size and image for you.
             </p>
@@ -156,12 +156,12 @@ export default function RoomListPage({
                     href={`/rooms/${room.id}`}
                     className="flex-1 min-w-0 flex flex-col gap-1 rounded-sm"
                   >
-                    <span className="text-[16px] leading-6 text-content-primary truncate">
+                    <span className="text-lead text-content-primary truncate">
                       {room.name || "Untitled room"}
                     </span>
                     <Tooltip>
                       <TooltipTrigger asChild>
-                        <span className="text-[12px] leading-4 text-content-disabled tabular">
+                        <span className="text-label text-content-disabled tabular">
                           {room.itemCount}{" "}
                           {room.itemCount === 1 ? "piece" : "pieces"}
                           {" · "}

@@ -4,7 +4,8 @@ import { forwardRef, useCallback, useEffect, useRef, useState } from "react";
 import { Stage, Layer, Rect, Line, Text, Group } from "react-konva";
 import type Konva from "konva";
 import type { Item, Room } from "@/lib/types";
-import { DEFAULT_EYE_LINE_HEIGHT_MM } from "@/lib/defaults";
+import { useCanvasChrome, WALL_INK } from "@/lib/canvasTheme";
+import { eyeLine, outerRect } from "@/lib/geometry";
 import { formatLength } from "@/lib/units";
 import { computeSnap, type Guide, type Rect as SnapRect } from "@/lib/snap";
 import { computeSpacingSegments, type SpacingSegment } from "@/lib/spacing";
@@ -21,23 +22,16 @@ type Props = {
 
 const PADDING = 56;
 const SNAP_THRESHOLD_PX = 6;
-const REDLINE = "#C62828";
+const REDLINE = WALL_INK.redline;
 
-function itemRect(item: Item): SnapRect {
-  const pad = (item.frame?.frameWidth ?? 0) + (item.frame?.matWidth ?? 0);
-  return {
-    x: item.x,
-    y: item.y,
-    width: item.artWidth + pad * 2,
-    height: item.artHeight + pad * 2,
-  };
-}
+const itemRect = outerRect;
 
 const WallCanvas = forwardRef<Konva.Stage, Props>(function WallCanvas(
   { room, selectedId, snapEnabled, redlinesEnabled, onSelect, onMoveItem },
   ref,
 ) {
   const containerRef = useRef<HTMLDivElement>(null);
+  const chrome = useCanvasChrome();
   const [size, setSize] = useState({ w: 0, h: 0 });
   const [dragging, setDragging] = useState<{
     id: string;
@@ -110,25 +104,14 @@ const WallCanvas = forwardRef<Konva.Stage, Props>(function WallCanvas(
   const offsetX = (size.w - wallPxW) / 2;
   const offsetY = (size.h - wallPxH) / 2;
 
-  const eyeLineEnabled = room.eyeLineEnabled ?? true;
-  const eyeLineHeight = room.eyeLineHeight ?? DEFAULT_EYE_LINE_HEIGHT_MM;
-  // Eye-line is height from FLOOR; wall y grows down from the top.
-  // If the requested height is taller than the wall (common on short
-  // feature walls), clamp onto the wall so the guide still appears.
-  const eyeLineY = (() => {
-    if (!eyeLineEnabled || !(eyeLineHeight > 0) || !(room.wallHeight > 0)) {
-      return null;
-    }
-    const fromTop = room.wallHeight - eyeLineHeight;
-    return Math.max(0, Math.min(fromTop, room.wallHeight));
-  })();
-  const eyeLineClamped =
-    eyeLineY != null &&
-    (eyeLineHeight >= room.wallHeight || eyeLineHeight <= 0);
+  const eye = eyeLine(room);
+  const eyeLineY = eye?.y ?? null;
 
   // Build a per-item dragBoundFunc that snaps in mm and returns absolute
   // stage coords for Konva to use as the new node position.
-  const makeDragBoundFunc = useCallback(
+  // Recreated each render; it was already called inline per item, so a
+  // useCallback here never saved work.
+  const makeDragBoundFunc =
     (item: Item) => (pos: { x: number; y: number }) => {
       const layerX = pos.x - offsetX;
       const layerY = pos.y - offsetY;
@@ -159,9 +142,7 @@ const WallCanvas = forwardRef<Konva.Stage, Props>(function WallCanvas(
         x: offsetX + result.x * scale,
         y: offsetY + result.y * scale,
       };
-    },
-    [offsetX, offsetY, scale, room.items, room.wallWidth, room.wallHeight, snapEnabled, eyeLineY, scheduleDragVisuals],
-  );
+    };
 
   // Decide which rect to show measurements for (selected-item mode only).
   const measureItem: { rect: SnapRect } | null = (() => {
@@ -219,8 +200,8 @@ const WallCanvas = forwardRef<Konva.Stage, Props>(function WallCanvas(
               y={offsetY}
               width={wallPxW}
               height={wallPxH}
-              fill="#FFFFFF"
-              stroke="#B6B4AF"
+              fill={WALL_INK.surface}
+              stroke={WALL_INK.edge}
               strokeWidth={1}
             />
           </Layer>
@@ -257,7 +238,7 @@ const WallCanvas = forwardRef<Konva.Stage, Props>(function WallCanvas(
           </Layer>
 
           {/* Eye line above art so the toggle is always obvious */}
-          {eyeLineY != null && (
+          {eye && eyeLineY != null && (
             <Layer listening={false}>
               <Line
                 points={[
@@ -266,22 +247,22 @@ const WallCanvas = forwardRef<Konva.Stage, Props>(function WallCanvas(
                   offsetX + wallPxW,
                   offsetY + eyeLineY * scale,
                 ]}
-                stroke="#E5A119"
+                stroke={WALL_INK.eyeLine}
                 strokeWidth={2}
                 dash={[8, 5]}
                 opacity={0.95}
               />
               <Text
                 text={
-                  eyeLineClamped
-                    ? `eye ${formatLength(eyeLineHeight, room.unit, 1)} (clamped to wall)`
-                    : `eye ${formatLength(eyeLineHeight, room.unit, 1)}`
+                  eye.clamped
+                    ? `eye ${formatLength(eye.heightFromFloor, room.unit, 1)} (clamped to wall)`
+                    : `eye ${formatLength(eye.heightFromFloor, room.unit, 1)}`
                 }
                 x={offsetX + wallPxW + 6}
                 y={offsetY + eyeLineY * scale - 7}
-                fontSize={11}
+                fontSize={12}
                 fontFamily="Inter, sans-serif"
-                fill="#B88114"
+                fill={chrome.eyeLabel}
               />
             </Layer>
           )}
@@ -315,7 +296,7 @@ const WallCanvas = forwardRef<Konva.Stage, Props>(function WallCanvas(
                 offsetX + wallPxW + 24,
                 offsetY + wallPxH,
               ]}
-              stroke="#6B6861"
+              stroke={chrome.label}
               strokeWidth={1}
             />
             <Text
@@ -324,7 +305,7 @@ const WallCanvas = forwardRef<Konva.Stage, Props>(function WallCanvas(
               y={offsetY + wallPxH - 6}
               fontSize={10}
               fontFamily="Inter, sans-serif"
-              fill="#6B6861"
+              fill={chrome.label}
             />
             <Text
               text={formatLength(room.wallWidth, room.unit, 1)}
@@ -332,7 +313,7 @@ const WallCanvas = forwardRef<Konva.Stage, Props>(function WallCanvas(
               y={offsetY - 20}
               fontSize={10}
               fontFamily="Inter, sans-serif"
-              fill="#6B6861"
+              fill={chrome.label}
             />
             <Text
               text={formatLength(room.wallHeight, room.unit, 1)}
@@ -340,7 +321,7 @@ const WallCanvas = forwardRef<Konva.Stage, Props>(function WallCanvas(
               y={offsetY + wallPxH / 2 - 6}
               fontSize={10}
               fontFamily="Inter, sans-serif"
-              fill="#6B6861"
+              fill={chrome.label}
             />
           </Layer>
         </Stage>
@@ -356,14 +337,14 @@ function guideColor(reason: Guide["reason"]): string {
   switch (reason) {
     case "wall-edge":
     case "item-edge":
-      return "#0021CC"; // surface-brand-primary
+      return WALL_INK.brand;
     case "wall-center":
     case "item-center":
-      return "#7A85B8"; // content-brand-secondary
+      return WALL_INK.brandSoft;
     case "equal-spacing":
-      return "#14B84B"; // surface-positive-primary
+      return WALL_INK.positive;
     case "eye-line":
-      return "#E5A119"; // surface-complimentary-primary
+      return WALL_INK.eyeLine;
   }
 }
 
@@ -418,7 +399,7 @@ function Measurements({
 
   const labelStyle = {
     fontSize: 10,
-    fill: "#120F08",
+    fill: WALL_INK.ink,
     padding: 2,
   } as const;
 
@@ -431,7 +412,7 @@ function Measurements({
   const pxBottom = (rect.y + rect.height) * scale;
 
   // Tick line color
-  const tick = "#B6B4AF"; // content-disabled
+  const tick = WALL_INK.tick;
   const tickW = 1;
 
   return (
@@ -500,7 +481,7 @@ function Measurements({
         x={pxX + pxW / 2 + 4}
         y={pxBottom + (wall.height * scale - pxBottom) / 2 - 7}
         {...labelStyle}
-        fill="#120F08"
+        fill={WALL_INK.ink}
       />
 
       {/* Center-to-floor — the "57in" number */}
@@ -509,7 +490,7 @@ function Measurements({
         x={pxX + pxW + 6}
         y={(centerY * scale) - 7}
         fontSize={10}
-        fill="#6B6861"
+        fill={WALL_INK.inkMuted}
       />
     </Group>
   );
@@ -598,7 +579,7 @@ function Label({
   x,
   y,
   fontSize = 10,
-  fill = "#120F08",
+  fill = WALL_INK.ink as string,
 }: {
   text: string;
   x: number;

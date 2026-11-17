@@ -1,7 +1,6 @@
 import "server-only";
 import * as cheerio from "cheerio";
 import Anthropic from "@anthropic-ai/sdk";
-import { z } from "zod";
 import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
 import { base64Bytes, parseImageDataUrl } from "./dataUrl";
 import {
@@ -11,31 +10,13 @@ import {
   UnsafeUrlError,
 } from "./server/safeFetch";
 
-// ---- Schema ----
+import {
+  ExtractedProductSchema,
+  type ExtractedProduct,
+  type ExtractResult,
+} from "./extractSchema";
 
-const VariantSchema = z.object({
-  widthInches: z.number(),
-  heightInches: z.number(),
-  label: z.string().nullable(),
-});
-
-const ExtractedProductSchema = z.object({
-  name: z.string().nullable(),
-  imageUrl: z.string().nullable(),
-  widthInches: z.number().nullable(),
-  heightInches: z.number().nullable(),
-  variants: z.array(VariantSchema),
-  confidence: z.enum(["high", "medium", "low"]),
-  warnings: z.array(z.string()),
-});
-
-export type ExtractedProduct = z.infer<typeof ExtractedProductSchema>;
-
-export type ExtractResult = {
-  url: string;
-  extracted: ExtractedProduct;
-  imageDataUrl: string | null;
-};
+export type { ExtractedProduct, ExtractResult };
 
 // ---- Public entry points ----
 

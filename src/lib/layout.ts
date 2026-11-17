@@ -9,6 +9,7 @@
 // canvas + snap-engine convention).
 
 import type { Item } from "./types";
+import { outerSize } from "./geometry";
 import { toMm } from "./units";
 
 export type LayoutTemplate = "salon" | "grid" | "row";
@@ -21,12 +22,10 @@ type Position = { id: string; x: number; y: number };
 const DEFAULT_GAP_MM = toMm(3, "in");
 
 function itemW(it: Item): number {
-  const pad = (it.frame?.frameWidth ?? 0) + (it.frame?.matWidth ?? 0);
-  return it.artWidth + pad * 2;
+  return outerSize(it).width;
 }
 function itemH(it: Item): number {
-  const pad = (it.frame?.frameWidth ?? 0) + (it.frame?.matWidth ?? 0);
-  return it.artHeight + pad * 2;
+  return outerSize(it).height;
 }
 function itemRect(it: Item): Rect {
   return { x: it.x, y: it.y, w: itemW(it), h: itemH(it) };

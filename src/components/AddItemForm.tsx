@@ -2,7 +2,9 @@
 
 import { useEffect, useRef, useState } from "react";
 import type { Frame, Unit } from "@/lib/types";
-import { toMm } from "@/lib/units";
+import { DEFAULT_FRAME } from "@/lib/defaults";
+import type { ExtractedFields, ExtractedProduct, Variant } from "@/lib/extractSchema";
+import { toInput, toMm } from "@/lib/units";
 import { downscaleImage } from "@/lib/image";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -23,31 +25,13 @@ type Props = {
   }) => void;
 };
 
-const DEFAULT_FRAME_COLOR = "#1f1f1f";
-
-type Variant = {
-  widthInches: number;
-  heightInches: number;
-  label: string | null;
-};
-
-type ExtractedPayload = {
-  name: string | null;
-  widthInches: number | null;
-  heightInches: number | null;
-  variants: Variant[];
-  confidence: "high" | "medium" | "low";
-  warnings: string[];
-};
-
-type ExtractionState = {
-  confidence: "high" | "medium" | "low";
-  warnings: string[];
-  variants: Variant[];
-} | null;
+type ExtractionState = Pick<
+  ExtractedFields,
+  "confidence" | "warnings" | "variants"
+> | null;
 
 function inchesToInput(inches: number, unit: Unit): string {
-  return unit === "in" ? inches.toFixed(1) : (inches * 2.54).toFixed(1);
+  return toInput(toMm(inches, "in"), unit, 1);
 }
 
 export default function AddItemForm({ unit, onAdd }: Props) {
@@ -57,9 +41,9 @@ export default function AddItemForm({ unit, onAdd }: Props) {
   const [width, setWidth] = useState("18");
   const [height, setHeight] = useState("24");
   const [framed, setFramed] = useState(true);
-  const [matIn, setMatIn] = useState("2");
-  const [frameIn, setFrameIn] = useState("0.75");
-  const [frameColor, setFrameColor] = useState(DEFAULT_FRAME_COLOR);
+  const [matIn, setMatIn] = useState(() => toInput(DEFAULT_FRAME.matWidth, unit));
+  const [frameIn, setFrameIn] = useState(() => toInput(DEFAULT_FRAME.frameWidth, unit));
+  const [frameColor, setFrameColor] = useState(DEFAULT_FRAME.frameColor);
   const fileInput = useRef<HTMLInputElement>(null);
   const formRef = useRef<HTMLDivElement>(null);
 
@@ -102,7 +86,7 @@ export default function AddItemForm({ unit, onAdd }: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  function applyExtraction(e: ExtractedPayload) {
+  function applyExtraction(e: ExtractedFields) {
     if (e.name) setName(e.name);
     if (e.widthInches != null) setWidth(inchesToInput(e.widthInches, unit));
     if (e.heightInches != null) setHeight(inchesToInput(e.heightInches, unit));
@@ -131,7 +115,7 @@ export default function AddItemForm({ unit, onAdd }: Props) {
         body: JSON.stringify({ url }),
       });
       const data = (await res.json()) as {
-        extracted?: ExtractedPayload & { imageUrl: string | null };
+        extracted?: ExtractedProduct;
         imageDataUrl?: string | null;
         error?: string;
       };
@@ -168,7 +152,7 @@ export default function AddItemForm({ unit, onAdd }: Props) {
         body: JSON.stringify({ imageDataUrl: dataUrl }),
       });
       const data = (await res.json()) as {
-        extracted?: ExtractedPayload;
+        extracted?: ExtractedFields;
         error?: string;
       };
       if (!res.ok || !data.extracted) {
@@ -197,9 +181,9 @@ export default function AddItemForm({ unit, onAdd }: Props) {
     setWidth("18");
     setHeight("24");
     setFramed(true);
-    setMatIn("2");
-    setFrameIn("0.75");
-    setFrameColor(DEFAULT_FRAME_COLOR);
+    setMatIn(toInput(DEFAULT_FRAME.matWidth, unit));
+    setFrameIn(toInput(DEFAULT_FRAME.frameWidth, unit));
+    setFrameColor(DEFAULT_FRAME.frameColor);
     setUrlInput("");
     setExtraction(null);
     setFetchError(null);
@@ -253,10 +237,10 @@ export default function AddItemForm({ unit, onAdd }: Props) {
       onDrop={onDrop}
     >
       <div>
-        <div className="text-[10px] leading-4 text-content-disabled mb-1">
+        <div className="text-caption text-content-disabled mb-1">
           Add
         </div>
-        <h2 className="text-[16px] leading-6 text-content-primary">
+        <h2 className="text-lead text-content-primary">
           New piece
         </h2>
       </div>
@@ -282,7 +266,7 @@ export default function AddItemForm({ unit, onAdd }: Props) {
           <Button
             type="button"
             variant="outline"
-            className="text-[12px] leading-4"
+            className="text-label"
             onClick={() => void fetchFromUrl()}
             disabled={!urlInput || fetching}
           >
@@ -291,7 +275,7 @@ export default function AddItemForm({ unit, onAdd }: Props) {
         </div>
       </div>
 
-      <div className="flex items-center gap-2 text-[10px] leading-4 text-content-disabled">
+      <div className="flex items-center gap-2 text-caption text-content-disabled">
         <Separator className="flex-1" />
         or
         <Separator className="flex-1" />
@@ -300,7 +284,7 @@ export default function AddItemForm({ unit, onAdd }: Props) {
       {/* Drop zone */}
       <div
         onClick={() => fileInput.current?.click()}
-        className={`border border-dashed rounded-md px-4 py-6 text-center text-[12px] leading-4 cursor-pointer ${
+        className={`border border-dashed rounded-md px-4 py-6 text-center text-label cursor-pointer ${
           dragOver
             ? "border-content-brand bg-surface-brand-secondary text-content-brand"
             : "border-surface-tertiary text-content-secondary hover:border-content-disabled hover:bg-surface-secondary"
@@ -345,7 +329,7 @@ export default function AddItemForm({ unit, onAdd }: Props) {
         </Alert>
       ) : null}
       {extraction ? (
-        <div className="flex flex-col gap-2 text-[12px] leading-4">
+        <div className="flex flex-col gap-2 text-label">
           <Badge
             variant={
               extraction.confidence === "high"
@@ -384,7 +368,7 @@ export default function AddItemForm({ unit, onAdd }: Props) {
                     key={i}
                     type="button"
                     variant="outline"
-                    className="text-[12px] leading-4 tabular"
+                    className="text-label tabular"
                     onClick={() => applyVariant(v)}
                   >
                     {v.widthInches}″ × {v.heightInches}″
@@ -441,7 +425,7 @@ export default function AddItemForm({ unit, onAdd }: Props) {
         />
         <Label
           htmlFor="add-frame"
-          className="text-[12px] leading-4 text-content-primary cursor-pointer"
+          className="text-label text-content-primary cursor-pointer"
         >
           Add a frame
         </Label>

@@ -47,13 +47,13 @@ function ErrorScreen({ title, message }: { title: string; message: string }) {
     <div className="min-h-screen bg-surface-primary text-content-secondary">
       <BrandedHeader title="Gallery Wall" />
       <main className="max-w-[800px] mx-auto px-12 pt-32 pb-24">
-        <div className="text-[10px] leading-4 text-content-disabled mb-2">
+        <div className="text-caption text-content-disabled mb-2">
           Error
         </div>
-        <h1 className="text-[48px] leading-[52px] text-content-primary mb-3">
+        <h1 className="text-display text-content-primary mb-3">
           {title}
         </h1>
-        <p className="text-[16px] leading-6 text-content-secondary mb-6 max-w-[560px]">
+        <p className="text-lead text-content-secondary mb-6 max-w-[560px]">
           {message}
         </p>
         <Button asChild>

@@ -33,7 +33,7 @@ export default function ItemsList({
 }: Props) {
   if (items.length === 0) {
     return (
-      <div className="px-6 py-4 text-[12px] leading-4 text-content-disabled">
+      <div className="px-6 py-4 text-label text-content-disabled">
         No pieces yet. Add one below.
       </div>
     );
@@ -78,10 +78,10 @@ export default function ItemsList({
               }
             />
             <div className="flex-1 min-w-0">
-              <div className="truncate text-[14px] leading-5 text-content-primary">
+              <div className="truncate text-body text-content-primary">
                 {it.name}
               </div>
-              <div className="text-[10px] leading-4 text-content-disabled tabular">
+              <div className="text-caption text-content-disabled tabular">
                 {formatLength(it.artWidth, unit)} ×{" "}
                 {formatLength(it.artHeight, unit)}
               </div>

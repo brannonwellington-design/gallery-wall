@@ -18,10 +18,10 @@ export default async function Home() {
       <div className="min-h-screen bg-surface-primary text-content-secondary">
         <BrandedHeader title="Gallery Wall" />
         <main className="max-w-[800px] mx-auto px-12 pt-32 pb-24">
-          <div className="text-[10px] leading-4 text-content-disabled mb-2">
+          <div className="text-caption text-content-disabled mb-2">
             Error
           </div>
-          <h1 className="text-[48px] leading-[52px] text-content-primary mb-3">
+          <h1 className="text-display text-content-primary mb-3">
             Couldn’t load rooms
           </h1>
           <Alert variant="destructive" className="mb-4 max-w-[560px]">
@@ -29,11 +29,11 @@ export default async function Home() {
               {e instanceof Error ? e.message : "Unknown error"}
             </AlertDescription>
           </Alert>
-          <p className="text-[12px] leading-4 text-content-disabled max-w-[560px]">
+          <p className="text-label text-content-disabled max-w-[560px]">
             Check the Supabase configuration in <span className="tabular">.env.local</span>,
             or unset the env vars to fall back to local file storage.
           </p>
-          <p className="mt-6 text-[12px] leading-4 text-content-disabled tabular">
+          <p className="mt-6 text-label text-content-disabled tabular">
             <LocalTime iso={commitDate} prefix="Platform updated " />
           </p>
         </main>

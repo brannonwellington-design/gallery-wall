@@ -11,7 +11,7 @@ type Props = {
 
 export default function BrandedHeader({ title, variant = "fixed" }: Props) {
   const base =
-    "text-center text-[12px] leading-4 font-normal pointer-events-none select-none";
+    "text-center text-label font-normal pointer-events-none select-none";
   const positioned =
     variant === "fixed"
       ? "fixed top-6 left-0 right-0 z-30"

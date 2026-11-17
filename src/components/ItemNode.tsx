@@ -3,6 +3,8 @@
 import { Circle, Group, Image as KImage, Line, Rect, Text } from "react-konva";
 import useImage from "use-image";
 import type Konva from "konva";
+import { WALL_INK } from "@/lib/canvasTheme";
+import { framePadding, outerSize } from "@/lib/geometry";
 import type { Item } from "@/lib/types";
 
 type Props = {
@@ -29,11 +31,8 @@ export default function ItemNode({
   const [img] = useImage(item.imageSrc, "anonymous");
 
   const frameW = item.frame?.frameWidth ?? 0;
-  const matW = item.frame?.matWidth ?? 0;
-  const pad = frameW + matW;
-
-  const totalW = item.artWidth + pad * 2;
-  const totalH = item.artHeight + pad * 2;
+  const pad = framePadding(item);
+  const { width: totalW, height: totalH } = outerSize(item);
 
   return (
     <Group
@@ -64,7 +63,7 @@ export default function ItemNode({
             y={frameW * scale}
             width={(totalW - frameW * 2) * scale}
             height={(totalH - frameW * 2) * scale}
-            fill="#FBF9F4"
+            fill={WALL_INK.mat}
           />
         </>
       )}
@@ -82,7 +81,7 @@ export default function ItemNode({
           y={pad * scale}
           width={item.artWidth * scale}
           height={item.artHeight * scale}
-          fill="#E2DCCF"
+          fill={WALL_INK.placeholder}
         />
       )}
       {!item.frame && (
@@ -91,7 +90,7 @@ export default function ItemNode({
           y={pad * scale}
           width={item.artWidth * scale}
           height={item.artHeight * scale}
-          stroke="#B6B4AF"
+          stroke={WALL_INK.edge}
           strokeWidth={1}
           listening={false}
         />
@@ -100,7 +99,7 @@ export default function ItemNode({
         <Rect
           width={totalW * scale}
           height={totalH * scale}
-          stroke="#0021CC"
+          stroke={WALL_INK.brand}
           strokeWidth={1}
           dash={[6, 4]}
           listening={false}
@@ -112,7 +111,7 @@ export default function ItemNode({
           y={-16}
           fontSize={10}
           fontFamily="Inter, sans-serif"
-          fill="#0021CC"
+          fill={WALL_INK.brand}
         />
       )}
       {item.pinned && (
@@ -120,9 +119,9 @@ export default function ItemNode({
         // head + pointed base + cream dot. Excluded from listening so it
         // doesn't intercept drags on the piece below.
         <Group x={totalW * scale - 12} y={6} listening={false}>
-          <Circle radius={6} fill="#0021CC" />
-          <Line points={[0, 4, -4, 10, 4, 10]} closed fill="#0021CC" />
-          <Circle radius={1.5} fill="#FBF9F4" />
+          <Circle radius={6} fill={WALL_INK.brand} />
+          <Line points={[0, 4, -4, 10, 4, 10]} closed fill={WALL_INK.brand} />
+          <Circle radius={1.5} fill={WALL_INK.mat} />
         </Group>
       )}
     </Group>

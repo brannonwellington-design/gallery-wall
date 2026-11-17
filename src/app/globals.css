@@ -103,6 +103,26 @@ html[data-theme="dark"] {
 }
 
 /*
+ * Brand type scale (Inter Regular 400 only). Each step pairs a size from the
+ * Listen Labs scale with its line height, so `text-label` replaces
+ * `text-[12px] leading-4` etc. Use these instead of one-off pixel sizes.
+ */
+@theme {
+  --text-caption: 10px;
+  --text-caption--line-height: 16px;
+  --text-label: 12px;
+  --text-label--line-height: 16px;
+  --text-body: 14px;
+  --text-body--line-height: 20px;
+  --text-lead: 16px;
+  --text-lead--line-height: 24px;
+  --text-title: 24px;
+  --text-title--line-height: 28px;
+  --text-display: 48px;
+  --text-display--line-height: 52px;
+}
+
+/*
  * Map brand tokens to Tailwind v4 utilities so `bg-surface-primary`,
  * `text-content-secondary` etc. are first-class. Token name → utility name.
  */

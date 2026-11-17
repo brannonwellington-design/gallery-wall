@@ -21,6 +21,8 @@ Open http://localhost:3000.
 
 CI (`.github/workflows/ci.yml`) runs all four on every push.
 
+Production deploys from `main`: every push to `main` builds and goes live on listen-gallerywall.vercel.app (Vercel project `gallery-wall`, Listen Labs team). Other branches get preview deployments behind Vercel login.
+
 Without any environment variables, rooms persist to a local JSON file at `data/rooms.json` (gitignored). Useful for solo dev — but rooms won't be shared across machines.
 
 ## Connect Supabase (for shared rooms)

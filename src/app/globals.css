@@ -1,9 +1,15 @@
 @import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+/* Dark utilities follow the existing opt-in theme toggle, not .dark / OS. */
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
 
 /*
  * Listen Labs brand tokens — Paper theme.
  * Source: github.com/brannonwellington-design/listen-labs-brand-plugin
  * Token names are identical across light/dark; only values change.
+ * shadcn variables below alias these so primitives pick up Paper automatically.
  */
 :root {
   /* Paper – Light */
@@ -37,6 +43,35 @@
   --surface-negative-secondary: #F5D9D6;
   --surface-positive-primary: #14B84B;
   --surface-positive-secondary: #D6F5E0;
+
+  /* shadcn aliases → Paper */
+  --background: var(--surface-primary);
+  --foreground: var(--content-primary);
+  --card: var(--surface-highlight);
+  --card-foreground: var(--content-primary);
+  --popover: var(--surface-primary);
+  --popover-foreground: var(--content-primary);
+  --primary: var(--surface-brand-primary);
+  --primary-foreground: var(--content-brand-contrast);
+  --secondary: var(--surface-secondary);
+  --secondary-foreground: var(--content-primary);
+  --muted: var(--surface-secondary);
+  --muted-foreground: var(--content-secondary);
+  --accent: var(--surface-brand-secondary);
+  --accent-foreground: var(--content-brand);
+  --destructive: var(--content-negative);
+  --border: var(--surface-tertiary);
+  --input: var(--surface-tertiary);
+  --ring: var(--content-primary);
+  --radius: 8px;
+  --sidebar: var(--surface-highlight);
+  --sidebar-foreground: var(--content-primary);
+  --sidebar-primary: var(--surface-brand-primary);
+  --sidebar-primary-foreground: var(--content-brand-contrast);
+  --sidebar-accent: var(--surface-secondary);
+  --sidebar-accent-foreground: var(--content-primary);
+  --sidebar-border: var(--surface-tertiary);
+  --sidebar-ring: var(--content-primary);
 }
 
 @media (prefers-color-scheme: dark) {
@@ -99,7 +134,45 @@ html[data-theme="dark"] {
   --color-surface-negative-primary: var(--surface-negative-primary);
   --color-surface-negative-secondary: var(--surface-negative-secondary);
 
-  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  /* Literal family — @theme inline cannot resolve Next.js runtime font vars. */
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-heading: "Inter", ui-sans-serif, system-ui, sans-serif;
+
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+
+  /* Brand radius scale: 0, 2, 4, 8, 12, 16 */
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 8px;
+  --radius-xl: 12px;
+  --radius-2xl: 16px;
+  --radius-3xl: 16px;
+  --radius-4xl: 16px;
 }
 
 /* Base */
@@ -108,7 +181,7 @@ html[data-theme="dark"] { color-scheme: dark; }
 html, body, #__next { height: 100%; }
 
 body {
-  font-family: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  font-family: "Inter", ui-sans-serif, system-ui, sans-serif;
   font-weight: 400;
   background: var(--surface-primary);
   color: var(--content-secondary);
@@ -135,5 +208,14 @@ p, .text-pretty { text-wrap: pretty; }
   *, *::before, *::after {
     animation-duration: 0.001ms !important;
     transition-duration: 0.001ms !important;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  html {
+    @apply font-sans;
   }
 }

@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
 import ThemeToggle from "@/components/ThemeToggle";
+import { TooltipProvider } from "@/components/ui/tooltip";
 
 // Brand requires Inter Regular 400 only — no other weights loaded.
 const inter = Inter({
@@ -39,8 +40,10 @@ export default function RootLayout({
         <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
       </head>
       <body className="h-full m-0 antialiased bg-surface-primary text-content-secondary">
-        {children}
-        <ThemeToggle />
+        <TooltipProvider>
+          {children}
+          <ThemeToggle />
+        </TooltipProvider>
       </body>
     </html>
   );

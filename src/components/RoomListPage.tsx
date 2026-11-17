@@ -6,6 +6,24 @@ import { useState, useTransition } from "react";
 import { Copy, Plus, Trash2 } from "lucide-react";
 import { formatAbsolute, formatEditedLabel } from "@/lib/dates";
 import type { RoomSummary } from "@/lib/types";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
+import { Separator } from "@/components/ui/separator";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import BrandedHeader from "./BrandedHeader";
 import LocalTime from "./LocalTime";
 
@@ -22,6 +40,10 @@ export default function RoomListPage({
   const [pending, startTransition] = useTransition();
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<{
+    id: string;
+    name: string;
+  } | null>(null);
 
   async function createRoom() {
     setCreating(true);
@@ -37,8 +59,10 @@ export default function RoomListPage({
     }
   }
 
-  async function deleteRoom(id: string, name: string) {
-    if (!confirm(`Delete “${name}”? This can’t be undone.`)) return;
+  async function confirmDelete() {
+    if (!pendingDelete) return;
+    const { id } = pendingDelete;
+    setPendingDelete(null);
     try {
       const res = await fetch(`/api/rooms/${id}`, { method: "DELETE" });
       if (!res.ok) throw new Error((await res.json()).error || "Failed");
@@ -87,21 +111,27 @@ export default function RoomListPage({
               {count} {count === 1 ? "room" : "rooms"}
             </span>
             <span aria-hidden="true">·</span>
-            <span title="Commit time of the currently deployed build">
-              Platform updated{" "}
-              <LocalTime iso={platformUpdatedAt} />
-            </span>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span>
+                  Platform updated{" "}
+                  <LocalTime iso={platformUpdatedAt} />
+                </span>
+              </TooltipTrigger>
+              <TooltipContent>
+                Commit time of the currently deployed build
+              </TooltipContent>
+            </Tooltip>
           </div>
         </header>
 
-        {/* Hairline divider — brand pattern for section breaks */}
-        <div className="h-px bg-content-disabled mb-8" aria-hidden="true" />
+        <Separator className="mb-8 bg-content-disabled" />
 
-        {error && (
-          <div className="mb-8 p-4 border-l-2 border-surface-negative-primary bg-surface-negative-secondary text-[14px] leading-5 text-content-primary">
-            {error}
-          </div>
-        )}
+        {error ? (
+          <Alert variant="destructive" className="mb-8">
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        ) : null}
 
         {initialRooms.length === 0 ? (
           <div className="py-16">
@@ -129,38 +159,57 @@ export default function RoomListPage({
                     <span className="text-[16px] leading-6 text-content-primary truncate">
                       {room.name || "Untitled room"}
                     </span>
-                    <span
-                      className="text-[12px] leading-4 text-content-disabled tabular"
-                      title={formatAbsolute(room.updatedAt)}
-                    >
-                      {room.itemCount}{" "}
-                      {room.itemCount === 1 ? "piece" : "pieces"}
-                      {" · "}
-                      {formatEditedLabel(room.updatedAt)}
-                    </span>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <span className="text-[12px] leading-4 text-content-disabled tabular">
+                          {room.itemCount}{" "}
+                          {room.itemCount === 1 ? "piece" : "pieces"}
+                          {" · "}
+                          {formatEditedLabel(room.updatedAt)}
+                        </span>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        {formatAbsolute(room.updatedAt)}
+                      </TooltipContent>
+                    </Tooltip>
                   </Link>
-                  <button
-                    type="button"
-                    onClick={() => duplicateRoom(room.id)}
-                    disabled={pending}
-                    className="shrink-0 inline-flex items-center justify-center w-11 h-11 rounded-md text-content-secondary hover:text-content-primary hover:bg-surface-secondary disabled:opacity-50"
-                    aria-label={`Duplicate ${room.name || "Untitled room"}`}
-                    title="Duplicate room"
-                  >
-                    <Copy size={16} strokeWidth={1.25} aria-hidden="true" />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() =>
-                      deleteRoom(room.id, room.name || "Untitled room")
-                    }
-                    disabled={pending}
-                    className="shrink-0 inline-flex items-center justify-center w-11 h-11 rounded-md text-content-secondary hover:text-content-negative hover:bg-surface-secondary disabled:opacity-50"
-                    aria-label={`Delete ${room.name || "Untitled room"}`}
-                    title="Delete room"
-                  >
-                    <Trash2 size={16} strokeWidth={1.25} aria-hidden="true" />
-                  </button>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="size-11 shrink-0 text-content-secondary"
+                        onClick={() => duplicateRoom(room.id)}
+                        disabled={pending}
+                        aria-label={`Duplicate ${room.name || "Untitled room"}`}
+                      >
+                        <Copy size={16} strokeWidth={1.25} aria-hidden="true" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>Duplicate room</TooltipContent>
+                  </Tooltip>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="size-11 shrink-0 text-content-secondary hover:bg-destructive/10 hover:text-destructive"
+                        onClick={() =>
+                          setPendingDelete({
+                            id: room.id,
+                            name: room.name || "Untitled room",
+                          })
+                        }
+                        disabled={pending}
+                        aria-label={`Delete ${room.name || "Untitled room"}`}
+                      >
+                        <Trash2 size={16} strokeWidth={1.25} aria-hidden="true" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>Delete room</TooltipContent>
+                  </Tooltip>
                 </li>
               ))}
             </ul>
@@ -175,6 +224,28 @@ export default function RoomListPage({
           </>
         )}
       </main>
+
+      <AlertDialog
+        open={pendingDelete != null}
+        onOpenChange={(open) => {
+          if (!open) setPendingDelete(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete room</AlertDialogTitle>
+            <AlertDialogDescription>
+              Delete “{pendingDelete?.name}”? This can’t be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction variant="destructive" onClick={() => void confirmDelete()}>
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
@@ -189,14 +260,9 @@ function NewRoomButton({
   creating: boolean;
 }) {
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      disabled={disabled}
-      className="inline-flex items-center gap-2 h-8 px-4 rounded-lg bg-surface-brand-primary text-content-brand-contrast text-[14px] leading-5 hover:opacity-90 disabled:opacity-50"
-    >
+    <Button type="button" onClick={onClick} disabled={disabled}>
       <Plus size={16} strokeWidth={1.25} aria-hidden="true" />
       {creating ? "Creating…" : "New room"}
-    </button>
+    </Button>
   );
 }

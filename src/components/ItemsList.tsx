@@ -3,6 +3,12 @@
 import { Loader2, Pin, PinOff, Scissors, Trash2, Undo2 } from "lucide-react";
 import type { Item, Unit } from "@/lib/types";
 import { formatLength } from "@/lib/units";
+import { Button } from "@/components/ui/button";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 type Props = {
   items: Item[];
@@ -38,6 +44,14 @@ export default function ItemsList({
         const active = it.id === selectedId;
         const bgRemoved = Boolean(it.imageOriginalDataUrl);
         const bgBusy = bgBusyId === it.id;
+        const bgLabel = bgBusy
+          ? "Removing background…"
+          : bgRemoved
+            ? "Restore original background"
+            : "Remove background (uses Replicate)";
+        const pinLabel = it.pinned
+          ? "Unpin — let Randomize move this piece"
+          : "Pin — keep this piece in place when randomizing";
         return (
           <li
             key={it.id}
@@ -72,79 +86,87 @@ export default function ItemsList({
                 {formatLength(it.artHeight, unit)}
               </div>
             </div>
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                onToggleBackground(it.id);
-              }}
-              disabled={bgBusy}
-              className={`inline-flex items-center justify-center w-8 h-8 rounded-md ${
-                bgRemoved
-                  ? "text-content-brand bg-surface-brand-secondary hover:opacity-80"
-                  : "text-content-secondary hover:text-content-primary hover:bg-surface-tertiary"
-              } disabled:opacity-60 disabled:cursor-wait`}
-              title={
-                bgBusy
-                  ? "Removing background…"
-                  : bgRemoved
-                    ? "Restore original background"
-                    : "Remove background (uses Replicate)"
-              }
-              aria-label={
-                bgRemoved ? "Restore background" : "Remove background"
-              }
-            >
-              {bgBusy ? (
-                <Loader2
-                  size={14}
-                  strokeWidth={1.25}
-                  className="animate-spin"
-                  aria-hidden="true"
-                />
-              ) : bgRemoved ? (
-                <Undo2 size={14} strokeWidth={1.25} aria-hidden="true" />
-              ) : (
-                <Scissors size={14} strokeWidth={1.25} aria-hidden="true" />
-              )}
-            </button>
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                onTogglePin(it.id);
-              }}
-              className={`inline-flex items-center justify-center w-8 h-8 rounded-md ${
-                it.pinned
-                  ? "text-content-brand bg-surface-brand-secondary hover:opacity-80"
-                  : "text-content-secondary hover:text-content-primary hover:bg-surface-tertiary"
-              }`}
-              aria-label={it.pinned ? "Unpin piece" : "Pin piece"}
-              aria-pressed={!!it.pinned}
-              title={
-                it.pinned
-                  ? "Unpin — let Randomize move this piece"
-                  : "Pin — keep this piece in place when randomizing"
-              }
-            >
-              {it.pinned ? (
-                <PinOff size={14} strokeWidth={1.25} aria-hidden="true" />
-              ) : (
-                <Pin size={14} strokeWidth={1.25} aria-hidden="true" />
-              )}
-            </button>
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                onRemove(it.id);
-              }}
-              className="inline-flex items-center justify-center w-8 h-8 rounded-md text-content-secondary hover:text-content-negative hover:bg-surface-negative-secondary"
-              aria-label={`Remove ${it.name}`}
-              title="Remove piece"
-            >
-              <Trash2 size={14} strokeWidth={1.25} aria-hidden="true" />
-            </button>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onToggleBackground(it.id);
+                  }}
+                  disabled={bgBusy}
+                  className={
+                    bgRemoved
+                      ? "text-content-brand bg-surface-brand-secondary hover:opacity-80"
+                      : "text-content-secondary"
+                  }
+                  aria-label={
+                    bgRemoved ? "Restore background" : "Remove background"
+                  }
+                >
+                  {bgBusy ? (
+                    <Loader2
+                      size={14}
+                      strokeWidth={1.25}
+                      className="animate-spin"
+                      aria-hidden="true"
+                    />
+                  ) : bgRemoved ? (
+                    <Undo2 size={14} strokeWidth={1.25} aria-hidden="true" />
+                  ) : (
+                    <Scissors size={14} strokeWidth={1.25} aria-hidden="true" />
+                  )}
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>{bgLabel}</TooltipContent>
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onTogglePin(it.id);
+                  }}
+                  className={
+                    it.pinned
+                      ? "text-content-brand bg-surface-brand-secondary hover:opacity-80"
+                      : "text-content-secondary"
+                  }
+                  aria-label={it.pinned ? "Unpin piece" : "Pin piece"}
+                  aria-pressed={!!it.pinned}
+                >
+                  {it.pinned ? (
+                    <PinOff size={14} strokeWidth={1.25} aria-hidden="true" />
+                  ) : (
+                    <Pin size={14} strokeWidth={1.25} aria-hidden="true" />
+                  )}
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>{pinLabel}</TooltipContent>
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onRemove(it.id);
+                  }}
+                  className="text-content-secondary hover:bg-destructive/10 hover:text-destructive"
+                  aria-label={`Remove ${it.name}`}
+                >
+                  <Trash2 size={14} strokeWidth={1.25} aria-hidden="true" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Remove piece</TooltipContent>
+            </Tooltip>
           </li>
         );
       })}

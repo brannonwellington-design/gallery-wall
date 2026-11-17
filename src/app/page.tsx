@@ -3,6 +3,7 @@ import { getBuildInfo } from "@/lib/buildInfo";
 import RoomListPage from "@/components/RoomListPage";
 import BrandedHeader from "@/components/BrandedHeader";
 import LocalTime from "@/components/LocalTime";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 
 export const dynamic = "force-dynamic";
 
@@ -23,9 +24,11 @@ export default async function Home() {
           <h1 className="text-[48px] leading-[52px] text-content-primary mb-3">
             Couldn’t load rooms
           </h1>
-          <p className="text-[16px] leading-6 text-content-secondary mb-4 max-w-[560px]">
-            {e instanceof Error ? e.message : "Unknown error"}
-          </p>
+          <Alert variant="destructive" className="mb-4 max-w-[560px]">
+            <AlertDescription>
+              {e instanceof Error ? e.message : "Unknown error"}
+            </AlertDescription>
+          </Alert>
           <p className="text-[12px] leading-4 text-content-disabled max-w-[560px]">
             Check the Supabase configuration in <span className="tabular">.env.local</span>,
             or unset the env vars to fall back to local file storage.

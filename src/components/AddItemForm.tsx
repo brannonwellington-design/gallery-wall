@@ -4,6 +4,13 @@ import { useEffect, useRef, useState } from "react";
 import type { Frame, Unit } from "@/lib/types";
 import { toMm } from "@/lib/units";
 import { downscaleImage } from "@/lib/image";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Separator } from "@/components/ui/separator";
 
 type Props = {
   unit: Unit;
@@ -255,10 +262,11 @@ export default function AddItemForm({ unit, onAdd }: Props) {
       </div>
 
       {/* URL paste */}
-      <label className="flex flex-col gap-1 text-[10px] leading-4 text-content-disabled">
-        Paste product URL
+      <div className="flex flex-col gap-1">
+        <Label htmlFor="product-url">Paste product URL</Label>
         <div className="flex gap-2">
-          <input
+          <Input
+            id="product-url"
             type="url"
             value={urlInput}
             onChange={(e) => setUrlInput(e.target.value)}
@@ -269,21 +277,24 @@ export default function AddItemForm({ unit, onAdd }: Props) {
               }
             }}
             placeholder="https://…"
-            className="flex-1 min-w-0 h-8 px-2 border border-surface-tertiary rounded-md text-[14px] leading-5 text-content-primary bg-surface-primary placeholder:text-content-disabled"
+            className="flex-1 min-w-0"
           />
-          <button
+          <Button
             type="button"
+            variant="outline"
+            className="text-[12px] leading-4"
             onClick={() => void fetchFromUrl()}
             disabled={!urlInput || fetching}
-            className="h-8 px-3 border border-surface-tertiary rounded-md text-[12px] leading-4 text-content-secondary bg-surface-primary hover:text-content-primary hover:bg-surface-secondary disabled:opacity-50"
           >
             {fetching ? "Working…" : "Fetch"}
-          </button>
+          </Button>
         </div>
-      </label>
+      </div>
 
-      <div className="text-[10px] leading-4 text-content-disabled text-center">
-        — or —
+      <div className="flex items-center gap-2 text-[10px] leading-4 text-content-disabled">
+        <Separator className="flex-1" />
+        or
+        <Separator className="flex-1" />
       </div>
 
       {/* Drop zone */}
@@ -328,20 +339,27 @@ export default function AddItemForm({ unit, onAdd }: Props) {
       </div>
 
       {/* Extraction status */}
-      {fetchError && (
-        <p className="text-[12px] leading-4 text-content-negative break-words">
-          {fetchError}
-        </p>
-      )}
-      {extraction && (
+      {fetchError ? (
+        <Alert variant="destructive">
+          <AlertDescription className="break-words">{fetchError}</AlertDescription>
+        </Alert>
+      ) : null}
+      {extraction ? (
         <div className="flex flex-col gap-2 text-[12px] leading-4">
-          <p
+          <Badge
+            variant={
+              extraction.confidence === "high"
+                ? "default"
+                : extraction.confidence === "medium"
+                  ? "secondary"
+                  : "outline"
+            }
             className={
               extraction.confidence === "high"
-                ? "text-content-positive"
+                ? "bg-surface-positive-secondary text-content-positive"
                 : extraction.confidence === "medium"
-                  ? "text-content-warning"
-                  : "text-content-secondary"
+                  ? "bg-surface-warning-secondary text-content-warning"
+                  : ""
             }
           >
             {extraction.confidence === "high"
@@ -349,125 +367,126 @@ export default function AddItemForm({ unit, onAdd }: Props) {
               : extraction.confidence === "medium"
                 ? "Extracted — please double-check the dimensions."
                 : "Couldn’t confidently extract dimensions — enter them manually."}
-          </p>
+          </Badge>
           {extraction.warnings.map((w, i) => (
             <p key={i} className="text-content-secondary">
               • {w}
             </p>
           ))}
-          {extraction.variants.length > 0 && (
+          {extraction.variants.length > 0 ? (
             <div className="mt-1">
               <p className="text-content-secondary mb-1">
                 Sizes available — pick one:
               </p>
               <div className="flex flex-wrap gap-1">
                 {extraction.variants.map((v, i) => (
-                  <button
+                  <Button
                     key={i}
                     type="button"
+                    variant="outline"
+                    className="text-[12px] leading-4 tabular"
                     onClick={() => applyVariant(v)}
-                    className="h-8 px-3 border border-surface-tertiary rounded-md text-[12px] leading-4 text-content-secondary hover:text-content-primary hover:bg-surface-secondary tabular"
                   >
                     {v.widthInches}″ × {v.heightInches}″
                     {v.label ? ` — ${v.label}` : ""}
-                  </button>
+                  </Button>
                 ))}
               </div>
             </div>
-          )}
+          ) : null}
         </div>
-      )}
+      ) : null}
 
-      <label className="flex flex-col gap-1 text-[10px] leading-4 text-content-disabled">
-        Name
-        <input
+      <div className="flex flex-col gap-1">
+        <Label htmlFor="piece-name">Name</Label>
+        <Input
+          id="piece-name"
           type="text"
           value={name}
           onChange={(e) => setName(e.target.value)}
           placeholder="e.g. Sunset print"
-          className="h-8 px-2 border border-surface-tertiary rounded-md text-[14px] leading-5 text-content-primary bg-surface-primary placeholder:text-content-disabled"
         />
-      </label>
+      </div>
 
       <div className="grid grid-cols-2 gap-2">
-        <label className="flex flex-col gap-1 text-[10px] leading-4 text-content-disabled">
-          Art width ({unitLabel})
-          <input
+        <div className="flex flex-col gap-1">
+          <Label htmlFor="art-width">Art width ({unitLabel})</Label>
+          <Input
+            id="art-width"
             type="number"
             step="0.1"
             min="0"
             value={width}
             onChange={(e) => syncHeightFromWidth(e.target.value)}
-            className="h-8 px-2 border border-surface-tertiary rounded-md text-[14px] leading-5 text-content-primary bg-surface-primary tabular"
           />
-        </label>
-        <label className="flex flex-col gap-1 text-[10px] leading-4 text-content-disabled">
-          Art height ({unitLabel})
-          <input
+        </div>
+        <div className="flex flex-col gap-1">
+          <Label htmlFor="art-height">Art height ({unitLabel})</Label>
+          <Input
+            id="art-height"
             type="number"
             step="0.1"
             min="0"
             value={height}
             onChange={(e) => setHeight(e.target.value)}
-            className="h-8 px-2 border border-surface-tertiary rounded-md text-[14px] leading-5 text-content-primary bg-surface-primary tabular"
           />
-        </label>
+        </div>
       </div>
 
-      <label className="flex items-center gap-2 text-[12px] leading-4 text-content-primary select-none cursor-pointer">
-        <input
-          type="checkbox"
+      <div className="flex items-center gap-2">
+        <Checkbox
+          id="add-frame"
           checked={framed}
-          onChange={(e) => setFramed(e.target.checked)}
-          className="w-4 h-4 accent-[color:var(--content-brand)]"
+          onCheckedChange={(checked) => setFramed(checked === true)}
         />
-        Add a frame
-      </label>
+        <Label
+          htmlFor="add-frame"
+          className="text-[12px] leading-4 text-content-primary cursor-pointer"
+        >
+          Add a frame
+        </Label>
+      </div>
 
-      {framed && (
+      {framed ? (
         <div className="grid grid-cols-3 gap-2">
-          <label className="flex flex-col gap-1 text-[10px] leading-4 text-content-disabled">
-            Mat ({unitLabel})
-            <input
+          <div className="flex flex-col gap-1">
+            <Label htmlFor="mat-width">Mat ({unitLabel})</Label>
+            <Input
+              id="mat-width"
               type="number"
               step="0.1"
               min="0"
               value={matIn}
               onChange={(e) => setMatIn(e.target.value)}
-              className="h-8 px-2 border border-surface-tertiary rounded-md text-[14px] leading-5 text-content-primary bg-surface-primary tabular"
             />
-          </label>
-          <label className="flex flex-col gap-1 text-[10px] leading-4 text-content-disabled">
-            Frame ({unitLabel})
-            <input
+          </div>
+          <div className="flex flex-col gap-1">
+            <Label htmlFor="frame-width">Frame ({unitLabel})</Label>
+            <Input
+              id="frame-width"
               type="number"
               step="0.1"
               min="0"
               value={frameIn}
               onChange={(e) => setFrameIn(e.target.value)}
-              className="h-8 px-2 border border-surface-tertiary rounded-md text-[14px] leading-5 text-content-primary bg-surface-primary tabular"
             />
-          </label>
-          <label className="flex flex-col gap-1 text-[10px] leading-4 text-content-disabled">
-            Color
+          </div>
+          <div className="flex flex-col gap-1">
+            <Label htmlFor="frame-color">Color</Label>
             <input
+              id="frame-color"
               type="color"
               value={frameColor}
               onChange={(e) => setFrameColor(e.target.value)}
-              className="h-8 w-full border border-surface-tertiary rounded-md bg-surface-primary"
+              className="h-8 w-full border border-surface-tertiary rounded-lg bg-surface-primary"
             />
-          </label>
+          </div>
         </div>
-      )}
+      ) : null}
 
-      <button
-        type="button"
-        onClick={submit}
-        disabled={!imageDataUrl}
-        className="inline-flex items-center justify-center h-8 px-4 rounded-lg bg-surface-brand-primary text-content-brand-contrast text-[14px] leading-5 hover:opacity-90 disabled:opacity-50"
-      >
+      <Button type="button" onClick={submit} disabled={!imageDataUrl}>
         Add to wall
-      </button>
+      </Button>
     </div>
   );
 }

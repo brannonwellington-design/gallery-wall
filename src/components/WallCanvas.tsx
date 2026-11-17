@@ -167,7 +167,59 @@ const WallCanvas = forwardRef<Konva.Stage, Props>(function WallCanvas(
       }
     };
     el.addEventListener("wheel", onWheel, { passive: false });
-    return () => el.removeEventListener("wheel", onWheel);
+
+    // Two-finger pinch zooms and pans (tablets, touchscreens). One finger
+    // still drags pieces; a second finger takes over as a view gesture.
+    let pinch: { dist: number; cx: number; cy: number; view: CanvasView } | null = null;
+    const touchInfo = (t: TouchList) => {
+      const rect = el.getBoundingClientRect();
+      const [a, b] = [t[0], t[1]];
+      return {
+        dist: Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY),
+        cx: (a.clientX + b.clientX) / 2 - rect.left,
+        cy: (a.clientY + b.clientY) / 2 - rect.top,
+      };
+    };
+    const onTouchStart = (e: TouchEvent) => {
+      if (e.touches.length !== 2) return;
+      e.preventDefault();
+      // Cancel any piece drag the first finger started.
+      itemsLayerRef.current?.find("Group").forEach((n) => {
+        if (n.isDragging()) n.stopDrag();
+      });
+      pinch = { ...touchInfo(e.touches), view: viewRef.current.view };
+    };
+    const onTouchMove = (e: TouchEvent) => {
+      if (!pinch || e.touches.length !== 2) return;
+      e.preventDefault();
+      const { size: sz, fitScale: fs, wall } = viewRef.current;
+      const now = touchInfo(e.touches);
+      const startScale = fs * pinch.view.zoom;
+      const zoom = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, pinch.view.zoom * (now.dist / pinch.dist)));
+      const scaleNow = fs * zoom;
+      // The wall point under the starting midpoint follows the fingers.
+      const wx = (pinch.cx - ((sz.w - wall.w * startScale) / 2 + pinch.view.panX)) / startScale;
+      const wy = (pinch.cy - ((sz.h - wall.h * startScale) / 2 + pinch.view.panY)) / startScale;
+      onViewChange({
+        zoom,
+        panX: now.cx - wx * scaleNow - (sz.w - wall.w * scaleNow) / 2,
+        panY: now.cy - wy * scaleNow - (sz.h - wall.h * scaleNow) / 2,
+      });
+    };
+    const onTouchEnd = (e: TouchEvent) => {
+      if (e.touches.length < 2) pinch = null;
+    };
+    el.addEventListener("touchstart", onTouchStart, { passive: false });
+    el.addEventListener("touchmove", onTouchMove, { passive: false });
+    el.addEventListener("touchend", onTouchEnd);
+    el.addEventListener("touchcancel", onTouchEnd);
+    return () => {
+      el.removeEventListener("wheel", onWheel);
+      el.removeEventListener("touchstart", onTouchStart);
+      el.removeEventListener("touchmove", onTouchMove);
+      el.removeEventListener("touchend", onTouchEnd);
+      el.removeEventListener("touchcancel", onTouchEnd);
+    };
   }, [onViewChange]);
 
   function zoomBy(factor: number) {
@@ -271,7 +323,7 @@ const WallCanvas = forwardRef<Konva.Stage, Props>(function WallCanvas(
   return (
     <div
       ref={containerRef}
-      className="relative w-full h-full bg-surface-secondary overflow-hidden"
+      className="relative w-full h-full bg-surface-secondary overflow-hidden touch-none"
     >
       {size.w > 0 && size.h > 0 && (
         <Stage
@@ -328,12 +380,13 @@ const WallCanvas = forwardRef<Konva.Stage, Props>(function WallCanvas(
                   const inSelection = selectedIds.has(item.id);
                   if (!inSelection) onSelect(item.id, additive);
                   // Dragging one of several selected pieces moves them all.
-                  const members =
+                  const members = (
                     inSelection && selectedIds.size > 1
                       ? room.items.filter((it) => selectedIds.has(it.id))
                       : additive && selectedIds.size > 0
                         ? room.items.filter((it) => selectedIds.has(it.id) || it.id === item.id)
-                        : [item];
+                        : [item]
+                  ).filter((m) => !m.pinned || m.id === item.id);
                   groupDrag.current =
                     members.length > 1
                       ? { leader: item.id, starts: new Map(members.map((m) => [m.id, { x: m.x, y: m.y }])) }

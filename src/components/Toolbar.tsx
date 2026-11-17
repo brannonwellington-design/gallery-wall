@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { ArrowLeft, Download, FileDown, Redo2, Ruler, Shuffle, Trash2, Undo2 } from "lucide-react";
+import { ArrowLeft, Download, FileDown, PanelLeft, Redo2, Ruler, Shuffle, Trash2, Undo2 } from "lucide-react";
 import { formatAbsolute, formatEditedLabel } from "@/lib/dates";
 import type { Unit } from "@/lib/types";
 import { fromMm, toMm } from "@/lib/units";
@@ -54,6 +54,9 @@ type Props = {
   guideHref: string;
   /** Who else is in the room (rendered next to the save status). */
   presence?: React.ReactNode;
+  /** Below desktop width the sidebar is a slide-over; this toggles it. */
+  sidebarOpen?: boolean;
+  onToggleSidebar?: () => void;
 };
 
 export default function Toolbar({
@@ -87,6 +90,8 @@ export default function Toolbar({
   onClear,
   guideHref,
   presence,
+  sidebarOpen,
+  onToggleSidebar,
 }: Props) {
   const [wInput, setWInput] = useState(() => fromMm(wallWidthMm, unit).toFixed(1));
   const [hInput, setHInput] = useState(() => fromMm(wallHeightMm, unit).toFixed(1));
@@ -129,6 +134,19 @@ export default function Toolbar({
     <header className="border-b border-surface-tertiary bg-surface-primary">
       {/* Identity + file. pr-14 clears the fixed ThemeToggle (top-4 right-4). */}
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2 px-6 py-2 pr-14">
+        {onToggleSidebar ? (
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="-ml-2 lg:hidden"
+            onClick={onToggleSidebar}
+            aria-label={sidebarOpen ? "Hide pieces panel" : "Show pieces panel"}
+            aria-expanded={sidebarOpen}
+          >
+            <PanelLeft size={16} strokeWidth={1.25} aria-hidden="true" />
+          </Button>
+        ) : null}
         <Hint label="Back to rooms">
           <Button variant="ghost" className="-ml-2 text-label" asChild>
             <Link href="/">

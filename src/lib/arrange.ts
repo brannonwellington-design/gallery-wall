@@ -7,10 +7,14 @@ import { toMm } from "./units";
 
 export type AlignMode = "left" | "hcenter" | "right" | "top" | "vcenter" | "bottom";
 
+// Pinned pieces never move. They still count when measuring the selection,
+// so aligning a selection that includes a pinned piece lines the others up
+// with it — the pinned piece acts as the anchor.
+
 function patch(items: Item[], moves: Map<string, { x?: number; y?: number }>): Item[] {
   return items.map((it) => {
     const m = moves.get(it.id);
-    return m ? { ...it, x: m.x ?? it.x, y: m.y ?? it.y } : it;
+    return m && !it.pinned ? { ...it, x: m.x ?? it.x, y: m.y ?? it.y } : it;
   });
 }
 
@@ -19,10 +23,13 @@ export function alignItems(items: Item[], ids: Set<string>, mode: AlignMode): It
   const sel = items.filter((it) => ids.has(it.id));
   if (sel.length < 2) return items;
   const rects = sel.map((it) => ({ it, r: outerRect(it) }));
-  const left = Math.min(...rects.map(({ r }) => r.x));
-  const right = Math.max(...rects.map(({ r }) => r.x + r.width));
-  const top = Math.min(...rects.map(({ r }) => r.y));
-  const bottom = Math.max(...rects.map(({ r }) => r.y + r.height));
+  // With a pinned piece in the selection, align to it rather than the box.
+  const anchors = rects.filter(({ it }) => it.pinned);
+  const ref = anchors.length > 0 ? anchors : rects;
+  const left = Math.min(...ref.map(({ r }) => r.x));
+  const right = Math.max(...ref.map(({ r }) => r.x + r.width));
+  const top = Math.min(...ref.map(({ r }) => r.y));
+  const bottom = Math.max(...ref.map(({ r }) => r.y + r.height));
   const moves = new Map<string, { x?: number; y?: number }>();
   for (const { it, r } of rects) {
     switch (mode) {
@@ -83,17 +90,18 @@ export function distributeItems(
 
 /** Move the selection as a block so its center sits on `centerX`. */
 export function centerItemsAt(items: Item[], ids: Set<string>, centerX: number): Item[] {
+  if (items.some((it) => ids.has(it.id) && it.pinned)) return items; // a pinned piece holds the block
   const sel = items.filter((it) => ids.has(it.id)).map(outerRect);
   if (sel.length === 0) return items;
   const left = Math.min(...sel.map((r) => r.x));
   const right = Math.max(...sel.map((r) => r.x + r.width));
   const dx = centerX - (left + right) / 2;
-  return items.map((it) => (ids.has(it.id) ? { ...it, x: it.x + dx } : it));
+  return items.map((it) => (ids.has(it.id) && !it.pinned ? { ...it, x: it.x + dx } : it));
 }
 
 /** Shift the selection by a delta in mm. */
 export function moveItems(items: Item[], ids: Set<string>, dx: number, dy: number): Item[] {
-  return items.map((it) => (ids.has(it.id) ? { ...it, x: it.x + dx, y: it.y + dy } : it));
+  return items.map((it) => (ids.has(it.id) && !it.pinned ? { ...it, x: it.x + dx, y: it.y + dy } : it));
 }
 
 /** Offset applied to duplicates so they don't land exactly on the original. */

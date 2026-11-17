@@ -206,8 +206,8 @@ export default function EditItemPanel({
           </TooltipTrigger>
           <TooltipContent>
             {item.pinned
-              ? "Unpin — Randomize will move this piece"
-              : "Pin — keep this piece in place when randomizing"}
+              ? "Unpin — let this piece move again"
+              : "Pin — lock this piece in place (no dragging, nudging, aligning or Randomize)"}
           </TooltipContent>
         </Tooltip>
         <Tooltip>

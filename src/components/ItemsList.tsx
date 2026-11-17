@@ -51,8 +51,8 @@ export default function ItemsList({
             ? "Restore original background"
             : "Remove background (uses Replicate)";
         const pinLabel = it.pinned
-          ? "Unpin — let Randomize move this piece"
-          : "Pin — keep this piece in place when randomizing";
+          ? "Unpin — let this piece move again"
+          : "Pin — lock this piece in place (no dragging, nudging, aligning or Randomize)";
         return (
           <li
             key={it.id}

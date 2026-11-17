@@ -43,7 +43,8 @@ export default function ItemNode({
       id={`item-${item.id}`}
       x={item.x * scale}
       y={item.y * scale}
-      draggable
+      // Pinned means pinned: no dragging (select it and unpin to move).
+      draggable={!item.pinned}
       dragBoundFunc={dragBoundFunc}
       onClick={(e: Konva.KonvaEventObject<MouseEvent>) =>
         onSelect(e.evt.shiftKey || e.evt.metaKey || e.evt.ctrlKey)

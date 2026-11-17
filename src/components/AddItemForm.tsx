@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { ScanText } from "lucide-react";
 import type { Frame, Unit } from "@/lib/types";
 import { DEFAULT_FRAME } from "@/lib/defaults";
 import type { ExtractedFields, ExtractedProduct, Variant } from "@/lib/extractSchema";
@@ -52,6 +53,8 @@ export default function AddItemForm({ unit, onAdd }: Props) {
   const [fetchError, setFetchError] = useState<string | null>(null);
   const [extraction, setExtraction] = useState<ExtractionState>(null);
   const [dragOver, setDragOver] = useState(false);
+  /** A user-supplied image Claude hasn't read yet (offer the button). */
+  const [readableImage, setReadableImage] = useState<string | null>(null);
 
   const unitLabel = unit === "in" ? '"' : "cm";
 
@@ -142,6 +145,16 @@ export default function AddItemForm({ unit, onAdd }: Props) {
     // halves the vision token bill.
     const dataUrl = await downscaleImage(rawDataUrl);
     setImageDataUrlWithProbe(dataUrl);
+    setFetchError(null);
+    setExtraction(null);
+    // Reading the image is a paid Claude call, so it's a button: a plain art
+    // photo has nothing to read, but a product-page screenshot does.
+    setReadableImage(dataUrl);
+  }
+
+  async function readFromImage() {
+    const dataUrl = readableImage;
+    if (!dataUrl) return;
     setFetching(true);
     setFetchError(null);
     setExtraction(null);
@@ -159,6 +172,7 @@ export default function AddItemForm({ unit, onAdd }: Props) {
         throw new Error(data.error || `Extraction failed (${res.status})`);
       }
       applyExtraction(data.extracted);
+      setReadableImage(null);
     } catch (err) {
       setFetchError(err instanceof Error ? err.message : "Failed to extract");
     } finally {
@@ -175,6 +189,7 @@ export default function AddItemForm({ unit, onAdd }: Props) {
   }
 
   function reset() {
+    setReadableImage(null);
     setName("");
     setImageDataUrl(null);
     setImageRatio(null);
@@ -305,8 +320,8 @@ export default function AddItemForm({ unit, onAdd }: Props) {
             </div>
             <div className="text-content-secondary">
               Works on bot-blocked sites (West Elm, Pottery Barn, …) —
-              screenshot the page, drop it here, and Claude reads the
-              dimensions from the image.
+              screenshot the page, drop it here, then have Claude read
+              the name and size from it.
             </div>
           </>
         )}
@@ -321,6 +336,19 @@ export default function AddItemForm({ unit, onAdd }: Props) {
           className="hidden"
         />
       </div>
+
+      {readableImage ? (
+        <Button
+          type="button"
+          variant="outline"
+          className="text-label"
+          onClick={() => void readFromImage()}
+          disabled={fetching}
+        >
+          <ScanText size={14} strokeWidth={1.25} aria-hidden="true" />
+          {fetching ? "Reading…" : "Read name & size from this image"}
+        </Button>
+      ) : null}
 
       {/* Extraction status */}
       {fetchError ? (

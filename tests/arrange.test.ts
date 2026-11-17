@@ -77,3 +77,17 @@ describe("moving and duplicating", () => {
     expect(copies[0]).toMatchObject({ id: "copy1", x: 50.8, y: 150.8, pinned: false, imageSrc: a.imageSrc });
   });
 });
+
+describe("pinned pieces", () => {
+  const pinned = { ...b, pinned: true };
+  it("never move, and act as the alignment anchor", () => {
+    const out = Object.fromEntries(alignItems([a, pinned, c], all, "top").map((i) => [i.id, i]));
+    expect(out.b.y).toBe(pinned.y);
+    expect(out.a.y).toBe(pinned.y);
+    expect(out.c.y).toBe(pinned.y);
+  });
+  it("aren't nudged or centered", () => {
+    expect(moveItems([pinned], new Set(["b"]), 10, 10)[0]).toBe(pinned);
+    expect(centerItemsAt([a, pinned], new Set(["a", "b"]), 2000)).toEqual([a, pinned]);
+  });
+});

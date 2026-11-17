@@ -100,6 +100,8 @@ export default function RoomEditor({
   const [clearOpen, setClearOpen] = useState(false);
   const stageRef = useRef<Konva.Stage | null>(null);
   const [view, setView] = useState<CanvasView>(FIT_VIEW);
+  // Below desktop width the sidebar slides over the wall; closed by default.
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   const onSaved = useCallback((iso: string) => {
     setUpdatedAt(iso);
@@ -371,6 +373,8 @@ export default function RoomEditor({
       <Toolbar
         presence={<PresenceBar others={collab.others} name={collab.name} onRename={collab.setName} />}
         guideHref={`/rooms/${roomId}/guide`}
+        sidebarOpen={sidebarOpen}
+        onToggleSidebar={() => setSidebarOpen((o) => !o)}
         roomName={room.name}
         unit={room.unit}
         wallWidthMm={room.wallWidth}
@@ -405,8 +409,18 @@ export default function RoomEditor({
         onClear={requestClearWall}
       />
 
-      <div className="flex flex-1 min-h-0">
-        <aside className="w-80 shrink-0 border-r border-surface-tertiary bg-surface-highlight flex flex-col min-h-0">
+      <div className="relative flex flex-1 min-h-0">
+        {sidebarOpen ? (
+          // Tap outside the slide-over to close it (tablet widths only).
+          <div
+            className="absolute inset-0 z-10 bg-surface-inverse-primary/10 lg:hidden"
+            onClick={() => setSidebarOpen(false)}
+            aria-hidden="true"
+          />
+        ) : null}
+        <aside
+          className={`${sidebarOpen ? "flex" : "hidden"} absolute inset-y-0 left-0 z-20 w-80 max-w-[85vw] shadow-xl lg:static lg:flex lg:max-w-none lg:shadow-none shrink-0 border-r border-surface-tertiary bg-surface-highlight flex-col min-h-0`}
+        >
           <div className="px-6 py-5 border-b border-surface-tertiary">
             <div className="text-caption text-content-disabled mb-1">
               Catalog

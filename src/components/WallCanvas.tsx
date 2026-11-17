@@ -25,6 +25,8 @@ type Props = {
   onMoveItems: (moves: { id: string; x: number; y: number }[]) => void;
   view: CanvasView;
   onViewChange: (view: CanvasView) => void;
+  /** Pieces other people have selected, with their color and name. */
+  remoteSelections?: Map<string, { color: string; name: string }>;
   selectedFixtureId: string | null;
   onSelectFixture: (id: string) => void;
   onMoveFixture: (id: string, xMm: number, yMm: number) => void;
@@ -46,6 +48,7 @@ const WallCanvas = forwardRef<Konva.Stage, Props>(function WallCanvas(
     onMoveItems,
     view,
     onViewChange,
+    remoteSelections,
     selectedFixtureId,
     onSelectFixture,
     onMoveFixture,
@@ -319,6 +322,7 @@ const WallCanvas = forwardRef<Konva.Stage, Props>(function WallCanvas(
                 item={item}
                 scale={scale}
                 selected={selectedIds.has(item.id)}
+                remote={remoteSelections?.get(item.id)}
                 onSelect={(additive) => onSelect(item.id, additive)}
                 onDragStart={(additive) => {
                   const inSelection = selectedIds.has(item.id);

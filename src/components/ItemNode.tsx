@@ -11,6 +11,8 @@ type Props = {
   item: Item;
   scale: number;
   selected: boolean;
+  /** Someone else has this piece selected: outline it in their color. */
+  remote?: { color: string; name: string };
   /** additive: Shift/⌘-click toggles the piece in the selection. */
   onSelect: (additive: boolean) => void;
   onDragStart: (additive: boolean) => void;
@@ -23,6 +25,7 @@ export default function ItemNode({
   item,
   scale,
   selected,
+  remote,
   onSelect,
   onDragStart,
   onDragMove,
@@ -101,6 +104,25 @@ export default function ItemNode({
           listening={false}
         />
       )}
+      {remote && !selected ? (
+        <>
+          <Rect
+            width={totalW * scale}
+            height={totalH * scale}
+            stroke={remote.color}
+            strokeWidth={2}
+            listening={false}
+          />
+          <Text
+            text={remote.name}
+            y={-14}
+            fontSize={10}
+            fontFamily="Inter, sans-serif"
+            fill={remote.color}
+            listening={false}
+          />
+        </>
+      ) : null}
       {selected && (
         <Rect
           width={totalW * scale}

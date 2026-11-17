@@ -36,6 +36,8 @@ export interface RoomsRepo {
   /** Every room's contents — used to check which stored images are still in use. */
   allRooms(): Promise<{ id: string; room: Room }[]>;
   exists(id: string): Promise<boolean>;
+  /** The room's updatedAt only (cheap), or null if it doesn't exist. */
+  version(id: string): Promise<string | null>;
   create(room?: Partial<Room>): Promise<{ id: string }>;
   update(id: string, room: Room, opts?: UpdateOptions): Promise<{ updatedAt: string }>;
   remove(id: string): Promise<void>;
@@ -120,6 +122,16 @@ class SupabaseRepo implements RoomsRepo {
         items: Array.isArray(row.data?.items) ? row.data.items : [],
       }) as Room,
     }));
+  }
+  async version(id: string): Promise<string | null> {
+    if (!UUID.test(id)) return null;
+    const { data, error } = await this.client
+      .from(TABLE)
+      .select("updated_at")
+      .eq("id", id)
+      .maybeSingle();
+    if (error) throw new Error(error.message);
+    return (data?.updated_at as string | undefined) ?? null;
   }
   async exists(id: string): Promise<boolean> {
     if (!UUID.test(id)) return false;
@@ -265,6 +277,11 @@ class FileRepo implements RoomsRepo {
       id: r.id,
       room: normalizeRoom({ name: r.name, ...r.data }),
     }));
+  }
+
+  async version(id: string): Promise<string | null> {
+    const shape = await this.read();
+    return Object.hasOwn(shape.rooms, id) ? shape.rooms[id].updated_at : null;
   }
 
   async exists(id: string): Promise<boolean> {

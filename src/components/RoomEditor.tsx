@@ -19,10 +19,12 @@ import {
 import { roomFingerprint } from "@/lib/roomFingerprint";
 import { normalizeRoom } from "@/lib/roomMigrations";
 import { useHistory } from "@/lib/useHistory";
-import { useRoomAutosave } from "@/lib/useRoomAutosave";
+import { useRoomAutosave, type RemoteChange } from "@/lib/useRoomAutosave";
 import AddItemForm from "./AddItemForm";
 import EditItemPanel from "./EditItemPanel";
 import FixturesPanel from "./FixturesPanel";
+import PresenceBar from "./PresenceBar";
+import { useCollaboration } from "./editor/useCollaboration";
 import ItemsList from "./ItemsList";
 import SelectionPanel from "./SelectionPanel";
 import Toolbar from "./Toolbar";
@@ -113,14 +115,54 @@ export default function RoomEditor({
     [setStateSilent],
   );
 
-  const { saveStatus, saveError, retrySave, markSaved } = useRoomAutosave({
+  const [layoutStatus, setLayoutStatus] = useState<string | null>(null);
+  const layoutStatusTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const flashLayoutStatus = useCallback((msg: string, ms = 2500) => {
+    setLayoutStatus(msg);
+    if (layoutStatusTimer.current) clearTimeout(layoutStatusTimer.current);
+    layoutStatusTimer.current = setTimeout(() => setLayoutStatus(null), ms);
+  }, []);
+
+  // Someone else's save arrived (merged with any unsaved edits here). Undo
+  // history is reset: undoing past it would silently revert their work.
+  const onRemoteChange = useCallback(
+    (next: Room, change: RemoteChange) => {
+      replaceState(next);
+      const ids = new Set(next.items.map((it) => it.id));
+      setSelection((prev) => prev.filter((id) => ids.has(id)));
+      flashLayoutStatus(
+        change.conflicts > 0
+          ? `Merged someone else’s changes — kept your version of ${change.conflicts} ${change.conflicts === 1 ? "piece" : "pieces"}`
+          : "Updated with someone else’s changes",
+        4000,
+      );
+    },
+    [replaceState, flashLayoutStatus],
+  );
+
+  const { saveStatus, saveError, retrySave, markSaved, checkRemote } = useRoomAutosave({
     roomId,
     room,
     initialUpdatedAt,
     enabled: ready,
     onSaved,
     onRoomNormalized,
+    onRemoteChange,
   });
+
+  const collab = useCollaboration({
+    roomId,
+    selection,
+    enabled: ready,
+    onServerVersion: checkRemote,
+  });
+  const remoteSelections = useMemo(() => {
+    const map = new Map<string, { color: string; name: string }>();
+    for (const p of collab.others) {
+      for (const id of p.selection) if (!map.has(id)) map.set(id, { color: p.color, name: p.name });
+    }
+    return map;
+  }, [collab.others]);
 
   // Crash recovery: restore a newer local draft before enabling autosave.
   useEffect(() => {
@@ -269,13 +311,6 @@ export default function RoomEditor({
     }));
   }, [setRoom]);
 
-  const [layoutStatus, setLayoutStatus] = useState<string | null>(null);
-  const layoutStatusTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  function flashLayoutStatus(msg: string) {
-    setLayoutStatus(msg);
-    if (layoutStatusTimer.current) clearTimeout(layoutStatusTimer.current);
-    layoutStatusTimer.current = setTimeout(() => setLayoutStatus(null), 2500);
-  }
 
   const randomize = useCallback(() => {
     setRoom((r) => {
@@ -293,7 +328,7 @@ export default function RoomEditor({
       flashLayoutStatus(`${capitalize(result.template)} layout`);
       return { ...r, items: result.items };
     });
-  }, [setRoom]);
+  }, [setRoom, flashLayoutStatus]);
 
   const { bgBusyId, bgError, dismissBgError, toggleBackground } =
     useBackgroundRemoval(room.items, setRoom);
@@ -334,6 +369,7 @@ export default function RoomEditor({
   return (
     <div className="flex flex-col h-screen w-full bg-surface-primary text-content-secondary">
       <Toolbar
+        presence={<PresenceBar others={collab.others} name={collab.name} onRename={collab.setName} />}
         guideHref={`/rooms/${roomId}/guide`}
         roomName={room.name}
         unit={room.unit}
@@ -452,6 +488,7 @@ export default function RoomEditor({
             onMoveItems={moveItemsTo}
             view={view}
             onViewChange={setView}
+            remoteSelections={remoteSelections}
             selectedFixtureId={selectedFixtureId}
             onSelectFixture={selectFixture}
             onMoveFixture={(id, x, y) => updateFixture(id, { x, y })}

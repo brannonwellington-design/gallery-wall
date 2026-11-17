@@ -52,6 +52,8 @@ type Props = {
   onClear: () => void;
   /** Link to this room's printable hanging guide. */
   guideHref: string;
+  /** Who else is in the room (rendered next to the save status). */
+  presence?: React.ReactNode;
 };
 
 export default function Toolbar({
@@ -84,6 +86,7 @@ export default function Toolbar({
   onExportPDF,
   onClear,
   guideHref,
+  presence,
 }: Props) {
   const [wInput, setWInput] = useState(() => fromMm(wallWidthMm, unit).toFixed(1));
   const [hInput, setHInput] = useState(() => fromMm(wallHeightMm, unit).toFixed(1));
@@ -168,6 +171,8 @@ export default function Toolbar({
         </div>
 
         <div className="flex-1 min-w-2" />
+
+        {presence}
 
         <div className="flex items-center gap-1">
           <Button

@@ -42,7 +42,7 @@ export default function ItemsList({
     <ul className="flex flex-col">
       {items.map((it) => {
         const active = it.id === selectedId;
-        const bgRemoved = Boolean(it.imageOriginalDataUrl);
+        const bgRemoved = Boolean(it.imageOriginalSrc);
         const bgBusy = bgBusyId === it.id;
         const bgLabel = bgBusy
           ? "Removing background…"
@@ -64,7 +64,7 @@ export default function ItemsList({
           >
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
-              src={it.imageDataUrl}
+              src={it.imageSrc}
               alt=""
               className="w-10 h-10 object-cover rounded-sm border border-surface-tertiary bg-surface-highlight"
               style={

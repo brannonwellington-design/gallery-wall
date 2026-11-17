@@ -44,17 +44,17 @@ function mergeItemImages(
 ): Item {
   let next = draft;
   if (
-    draft.imageDataUrl.startsWith("data:") &&
-    server.imageDataUrl.startsWith("http")
+    draft.imageSrc.startsWith("data:") &&
+    server.imageSrc.startsWith("http")
   ) {
-    next = { ...next, imageDataUrl: server.imageDataUrl };
+    next = { ...next, imageSrc: server.imageSrc };
     onChange?.();
   }
   if (
-    draft.imageOriginalDataUrl?.startsWith("data:") &&
-    server.imageOriginalDataUrl?.startsWith("http")
+    draft.imageOriginalSrc?.startsWith("data:") &&
+    server.imageOriginalSrc?.startsWith("http")
   ) {
-    next = { ...next, imageOriginalDataUrl: server.imageOriginalDataUrl };
+    next = { ...next, imageOriginalSrc: server.imageOriginalSrc };
     onChange?.();
   }
   return next;
@@ -74,23 +74,23 @@ export async function externalizeRoomImagesClient(
   for (const item of room.items) {
     let next = item;
 
-    if (item.imageDataUrl.startsWith("data:")) {
-      const url = await uploadOne(roomId, item.id, "main", item.imageDataUrl);
+    if (item.imageSrc.startsWith("data:")) {
+      const url = await uploadOne(roomId, item.id, "main", item.imageSrc);
       if (url) {
-        next = { ...next, imageDataUrl: url };
+        next = { ...next, imageSrc: url };
         changed = true;
       }
     }
 
-    if (next.imageOriginalDataUrl?.startsWith("data:")) {
+    if (next.imageOriginalSrc?.startsWith("data:")) {
       const url = await uploadOne(
         roomId,
         item.id,
         "original",
-        next.imageOriginalDataUrl,
+        next.imageOriginalSrc,
       );
       if (url) {
-        next = { ...next, imageOriginalDataUrl: url };
+        next = { ...next, imageOriginalSrc: url };
         changed = true;
       }
     }

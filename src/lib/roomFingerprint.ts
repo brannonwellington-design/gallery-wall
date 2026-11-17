@@ -30,8 +30,8 @@ export function roomFingerprint(room: Room): string {
       x: it.x,
       y: it.y,
       pinned: it.pinned ?? false,
-      img: imageId(it.imageDataUrl),
-      imgOrig: imageId(it.imageOriginalDataUrl),
+      img: imageId(it.imageSrc),
+      imgOrig: imageId(it.imageOriginalSrc),
     })),
   });
 }

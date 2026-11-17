@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
-import { externalizeRoomImages } from "@/lib/imageStore";
+import { deleteUnreferencedRoomImages, externalizeRoomImages } from "@/lib/imageStore";
 import { getRepo, RoomConflictError, RoomNotFoundError } from "@/lib/repo";
+import { withLegacyImageFields } from "@/lib/roomMigrations";
 import { isSafeId, parseRoom } from "@/lib/roomSchema";
 import { errorMessage, jsonError, readJson } from "@/lib/server/http";
 
@@ -38,7 +39,7 @@ export async function PATCH(req: Request, { params }: Ctx) {
     const { updatedAt } = await getRepo().update(id, room, {
       expectedUpdatedAt: baseUpdatedAt,
     });
-    return NextResponse.json({ ok: true, updatedAt, room });
+    return NextResponse.json({ ok: true, updatedAt, room: withLegacyImageFields(room) });
   } catch (e) {
     if (e instanceof RoomNotFoundError) return jsonError(e.message, 404);
     if (e instanceof RoomConflictError) {
@@ -55,7 +56,17 @@ export async function DELETE(_req: Request, { params }: Ctx) {
   try {
     const { id } = await params;
     if (!isSafeId(id)) return jsonError("Room not found", 404);
-    await getRepo().remove(id);
+    const repo = getRepo();
+    await repo.remove(id);
+    // Best-effort: free the room's stored images. Files another room still
+    // points at (e.g. an older duplicate) are kept. A failure here leaves
+    // orphaned files but never blocks the delete.
+    try {
+      const remaining = (await repo.allRooms()).map((r) => r.room);
+      await deleteUnreferencedRoomImages(id, remaining);
+    } catch (e) {
+      console.error("[rooms] image cleanup failed", id, e);
+    }
     return NextResponse.json({ ok: true });
   } catch (e) {
     return jsonError(errorMessage(e), 500);

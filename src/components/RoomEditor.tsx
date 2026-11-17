@@ -14,6 +14,7 @@ import {
   roomExceedsPatchLimit,
 } from "@/lib/externalizeClient";
 import { roomFingerprint } from "@/lib/roomFingerprint";
+import { normalizeRoom } from "@/lib/roomMigrations";
 import { toMm } from "@/lib/units";
 import { useHistory } from "@/lib/useHistory";
 import { useRoomAutosave } from "@/lib/useRoomAutosave";
@@ -31,12 +32,14 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { ScrollArea } from "@/components/ui/scroll-area";
 
 const WallCanvas = dynamic(() => import("./WallCanvas"), { ssr: false });
 
 function uid(): string {
-  return Math.random().toString(36).slice(2, 10);
+  // Unguessable and collision-free; also satisfies the server's id format.
+  return crypto.randomUUID();
 }
 
 const ARROWS: Record<string, [number, number]> = {
@@ -109,14 +112,15 @@ export default function RoomEditor({
       const draftIsCurrent =
         !draft?.baseUpdatedAt ||
         Date.parse(draft.baseUpdatedAt) === Date.parse(initialUpdatedAt);
+      const draftRoom = draft ? normalizeRoom(draft.room) : null;
       if (
-        draft &&
+        draftRoom &&
         draftIsCurrent &&
-        roomFingerprint(draft.room) !== roomFingerprint(initialRoom)
+        roomFingerprint(draftRoom) !== roomFingerprint(initialRoom)
       ) {
         // Prefer Storage URLs from the server when the draft still has huge
         // inline data URLs (pre-migration crash drafts).
-        let recovered = preferStoredImages(draft.room, initialRoom);
+        let recovered = preferStoredImages(draftRoom, initialRoom);
         if (roomExceedsPatchLimit(recovered)) {
           recovered = preferStoredImages(recovered, initialRoom);
         }
@@ -149,7 +153,7 @@ export default function RoomEditor({
 
   function addItem(data: {
     name: string;
-    imageDataUrl: string;
+    imageSrc: string;
     artWidth: number;
     artHeight: number;
     frame: Frame | null;
@@ -229,6 +233,7 @@ export default function RoomEditor({
   }, [setRoom]);
 
   const [bgBusyId, setBgBusyId] = useState<string | null>(null);
+  const [bgError, setBgError] = useState<string | null>(null);
 
   const toggleBackground = useCallback(
     async (id: string) => {
@@ -237,15 +242,15 @@ export default function RoomEditor({
 
       // If the original is stashed, restore it (and the pre-crop dims, if
       // we shrank them) without a network call.
-      if (item.imageOriginalDataUrl) {
+      if (item.imageOriginalSrc) {
         setRoom((r) => ({
           ...r,
           items: r.items.map((it) =>
             it.id === id
               ? {
                   ...it,
-                  imageDataUrl: it.imageOriginalDataUrl!,
-                  imageOriginalDataUrl: null,
+                  imageSrc: it.imageOriginalSrc!,
+                  imageOriginalSrc: null,
                   artWidth: it.artWidthOriginal ?? it.artWidth,
                   artHeight: it.artHeightOriginal ?? it.artHeight,
                   artWidthOriginal: null,
@@ -258,11 +263,12 @@ export default function RoomEditor({
       }
 
       setBgBusyId(id);
+      setBgError(null);
       try {
         const res = await fetch("/api/remove-background", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ imageDataUrl: item.imageDataUrl }),
+          body: JSON.stringify({ imageDataUrl: item.imageSrc }),
         });
         const data = (await res.json()) as {
           imageDataUrl?: string;
@@ -301,8 +307,8 @@ export default function RoomEditor({
             const cropped = widthRatio < 1 || heightRatio < 1;
             return {
               ...it,
-              imageOriginalDataUrl: it.imageDataUrl,
-              imageDataUrl: finalImage,
+              imageOriginalSrc: it.imageSrc,
+              imageSrc: finalImage,
               ...(cropped
                 ? {
                     artWidthOriginal: it.artWidth,
@@ -315,8 +321,10 @@ export default function RoomEditor({
           }),
         }));
       } catch (e) {
-        alert(
-          `Couldn’t remove background: ${e instanceof Error ? e.message : "Unknown error"}`,
+        setBgError(
+          `Couldn’t remove the background for “${item.name || "Untitled"}”: ${
+            e instanceof Error ? e.message : "Unknown error"
+          }`,
         );
       } finally {
         setBgBusyId(null);
@@ -450,7 +458,7 @@ export default function RoomEditor({
       />
 
       <div className="flex flex-1 min-h-0">
-        <aside className="w-80 border-r border-surface-tertiary bg-surface-highlight flex flex-col min-h-0">
+        <aside className="w-80 shrink-0 border-r border-surface-tertiary bg-surface-highlight flex flex-col min-h-0">
           <div className="px-6 py-5 border-b border-surface-tertiary">
             <div className="text-[10px] leading-4 text-content-disabled mb-1">
               Catalog
@@ -460,6 +468,20 @@ export default function RoomEditor({
             </h2>
           </div>
           <ScrollArea className="flex-1 min-h-0">
+            {bgError ? (
+              <Alert variant="destructive" className="mx-6 mt-4 w-auto">
+                <AlertDescription className="flex items-start gap-2">
+                  <span className="flex-1 break-words">{bgError}</span>
+                  <button
+                    type="button"
+                    onClick={() => setBgError(null)}
+                    className="shrink-0 underline"
+                  >
+                    Dismiss
+                  </button>
+                </AlertDescription>
+              </Alert>
+            ) : null}
             <ItemsList
               items={room.items}
               unit={room.unit}

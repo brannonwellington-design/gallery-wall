@@ -16,7 +16,7 @@ type Props = {
   unit: Unit;
   onAdd: (data: {
     name: string;
-    imageDataUrl: string;
+    imageSrc: string;
     artWidth: number;
     artHeight: number;
     frame: Frame | null;
@@ -220,7 +220,7 @@ export default function AddItemForm({ unit, onAdd }: Props) {
       : null;
     onAdd({
       name: name.trim() || "Untitled",
-      imageDataUrl,
+      imageSrc: imageDataUrl,
       artWidth: toMm(w, unit),
       artHeight: toMm(h, unit),
       frame,

@@ -9,10 +9,10 @@ export type Frame = {
 export type Item = {
   id: string;
   name: string;
-  imageDataUrl: string;
+  imageSrc: string;
   // When the user removes the background, the original image is moved here
   // so they can toggle back. Null when the background hasn't been removed.
-  imageOriginalDataUrl?: string | null;
+  imageOriginalSrc?: string | null;
   artWidth: number;
   artHeight: number;
   // Background removal auto-crops the image to the visible art, then

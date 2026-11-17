@@ -4,6 +4,7 @@ import path from "path";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Room, RoomRecord, RoomSummary } from "./types";
 import { makeDefaultRoom } from "./defaults";
+import { normalizeRoom } from "./roomMigrations";
 import { getServiceClient } from "./server/supabase";
 
 export class RoomNotFoundError extends Error {
@@ -31,6 +32,8 @@ export type UpdateOptions = {
 export interface RoomsRepo {
   list(): Promise<RoomSummary[]>;
   get(id: string): Promise<RoomRecord | null>;
+  /** Every room's contents — used to check which stored images are still in use. */
+  allRooms(): Promise<{ id: string; room: Room }[]>;
   exists(id: string): Promise<boolean>;
   create(room?: Partial<Room>): Promise<{ id: string }>;
   update(id: string, room: Room, opts?: UpdateOptions): Promise<{ updatedAt: string }>;
@@ -92,7 +95,7 @@ class SupabaseRepo implements RoomsRepo {
     if (!data) return null;
     const body = (data.data ?? {}) as Omit<Room, "name">;
     return {
-      room: {
+      room: normalizeRoom({
         name: (data.name as string) ?? "Untitled room",
         ...body,
         // Guaranteed fields even if an older row is sparse.
@@ -100,9 +103,21 @@ class SupabaseRepo implements RoomsRepo {
         wallHeight: body.wallHeight,
         unit: body.unit,
         items: Array.isArray(body.items) ? body.items : [],
-      },
+      }),
       updatedAt: (data.updated_at as string) ?? new Date().toISOString(),
     };
+  }
+  async allRooms(): Promise<{ id: string; room: Room }[]> {
+    const { data, error } = await this.client.from(TABLE).select("id, name, data");
+    if (error) throw new Error(error.message);
+    return (data ?? []).map((row) => ({
+      id: row.id as string,
+      room: normalizeRoom({
+        name: (row.name as string) ?? "Untitled room",
+        ...(row.data ?? {}),
+        items: Array.isArray(row.data?.items) ? row.data.items : [],
+      }) as Room,
+    }));
   }
   async exists(id: string): Promise<boolean> {
     if (!UUID.test(id)) return false;
@@ -236,9 +251,17 @@ class FileRepo implements RoomsRepo {
     const r = Object.hasOwn(shape.rooms, id) ? shape.rooms[id] : undefined;
     if (!r) return null;
     return {
-      room: { name: r.name, ...r.data },
+      room: normalizeRoom({ name: r.name, ...r.data }),
       updatedAt: r.updated_at,
     };
+  }
+
+  async allRooms(): Promise<{ id: string; room: Room }[]> {
+    const shape = await this.read();
+    return Object.values(shape.rooms).map((r) => ({
+      id: r.id,
+      room: normalizeRoom({ name: r.name, ...r.data }),
+    }));
   }
 
   async exists(id: string): Promise<boolean> {

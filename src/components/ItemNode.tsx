@@ -26,7 +26,7 @@ export default function ItemNode({
   onDragEnd,
   dragBoundFunc,
 }: Props) {
-  const [img] = useImage(item.imageDataUrl, "anonymous");
+  const [img] = useImage(item.imageSrc, "anonymous");
 
   const frameW = item.frame?.frameWidth ?? 0;
   const matW = item.frame?.matWidth ?? 0;

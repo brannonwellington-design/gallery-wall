@@ -127,8 +127,8 @@ export default function EditItemPanel({
     const raw = await readAsDataUrl(file);
     const downsized = await downscaleImage(raw);
     onUpdate(item.id, {
-      imageDataUrl: downsized,
-      imageOriginalDataUrl: null,
+      imageSrc: downsized,
+      imageOriginalSrc: null,
       artWidthOriginal: null,
       artHeightOriginal: null,
     });
@@ -164,7 +164,7 @@ export default function EditItemPanel({
       <div className="flex items-center gap-3">
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
-          src={item.imageDataUrl}
+          src={item.imageSrc}
           alt=""
           className="w-16 h-16 object-cover rounded-sm border border-surface-tertiary bg-surface-primary"
         />

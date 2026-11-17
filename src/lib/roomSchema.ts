@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { normalizeRoom } from "./roomMigrations";
 import type { Room } from "./types";
 
 // Server-side shape check for rooms coming in over the API. Deliberately
@@ -13,7 +14,7 @@ const MAX_MM = 1_000_000;
 
 const length = z.number().finite().min(0).max(MAX_MM);
 const coord = z.number().finite().min(-MAX_MM).max(MAX_MM);
-const imageSrc = z
+const imageUrl = z
   .string()
   .max(12_000_000)
   .refine((s) => s.startsWith("data:image/") || s.startsWith("https://") || s.startsWith("http://"), {
@@ -29,8 +30,8 @@ const FrameSchema = z.object({
 const ItemSchema = z.object({
   id: z.string().regex(ID),
   name: z.string().max(500),
-  imageDataUrl: imageSrc,
-  imageOriginalDataUrl: imageSrc.nullable().optional(),
+  imageSrc: imageUrl,
+  imageOriginalSrc: imageUrl.nullable().optional(),
   artWidth: length,
   artHeight: length,
   artWidthOriginal: length.nullable().optional(),
@@ -52,7 +53,7 @@ export const RoomSchema = z.object({
 });
 
 export function parseRoom(input: unknown): { ok: true; room: Room } | { ok: false; error: string } {
-  const result = RoomSchema.safeParse(input);
+  const result = RoomSchema.safeParse(normalizeRoom(input));
   if (result.success) return { ok: true, room: result.data };
   const issue = result.error.issues[0];
   const where = issue?.path.length ? ` at ${issue.path.join(".")}` : "";

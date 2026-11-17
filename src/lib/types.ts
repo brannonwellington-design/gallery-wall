@@ -6,6 +6,16 @@ export type Frame = {
   frameColor: string;
 };
 
+/** How a piece hangs: what the nail(s) catch, measured on the piece itself. */
+export type Hanger = {
+  /** One hook at the center (picture wire, sawtooth) or two (D-rings). */
+  kind: "single" | "pair";
+  /** mm from the top of the piece down to where the nail sits (wire pulled taut). */
+  drop: number;
+  /** mm between the two hooks, centered on the piece (pair only). */
+  spacing: number;
+};
+
 export type Item = {
   id: string;
   name: string;
@@ -27,6 +37,9 @@ export type Item = {
   // When true, the Randomize action leaves this piece's position alone
   // and the layout engine treats it as a fixed obstacle.
   pinned?: boolean;
+  // Hanging hardware. Null/absent means "not measured yet": the hanging
+  // guide assumes DEFAULT_HANGER and flags it.
+  hanger?: Hanger | null;
 };
 
 export type Room = {

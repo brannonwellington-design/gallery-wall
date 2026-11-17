@@ -6,6 +6,7 @@ import type { Frame, Item, Unit } from "@/lib/types";
 import { DEFAULT_FRAME } from "@/lib/defaults";
 import { fromMm, toInput, toMm } from "@/lib/units";
 import { downscaleImage } from "@/lib/image";
+import HangerFields from "./HangerFields";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
@@ -297,6 +298,12 @@ export default function EditItemPanel({
           </Field>
         </div>
       )}
+
+      <HangerFields
+        item={item}
+        unit={unit}
+        onChange={(hanger) => onUpdate(item.id, { hanger })}
+      />
     </div>
   );
 }

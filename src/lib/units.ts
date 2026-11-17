@@ -20,3 +20,24 @@ export function formatLength(mm: number, unit: Unit, digits = 1): string {
   const v = fromMm(mm, unit);
   return `${v.toFixed(digits)}${unit === "in" ? '"' : " cm"}`;
 }
+
+/**
+ * A length the way you'd read it off a tape measure: inches to the nearest
+ * 1/8" as a mixed fraction (57 3/8"), centimetres to one decimal.
+ */
+export function formatTape(mm: number, unit: Unit): string {
+  if (unit === "cm") return `${(mm / MM_PER_CM).toFixed(1)} cm`;
+  const eighths = Math.round((mm / MM_PER_IN) * 8);
+  const sign = eighths < 0 ? "-" : "";
+  const abs = Math.abs(eighths);
+  const whole = Math.floor(abs / 8);
+  let num = abs % 8;
+  let den = 8;
+  while (num > 0 && num % 2 === 0) {
+    num /= 2;
+    den /= 2;
+  }
+  const frac = num ? `${num}/${den}` : "";
+  if (!whole && frac) return `${sign}${frac}"`;
+  return `${sign}${whole}${frac ? ` ${frac}` : ""}"`;
+}

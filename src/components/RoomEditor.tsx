@@ -235,6 +235,7 @@ export default function RoomEditor({
   return (
     <div className="flex flex-col h-screen w-full bg-surface-primary text-content-secondary">
       <Toolbar
+        guideHref={`/rooms/${roomId}/guide`}
         roomName={room.name}
         unit={room.unit}
         wallWidthMm={room.wallWidth}

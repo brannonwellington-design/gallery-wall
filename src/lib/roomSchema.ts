@@ -27,6 +27,12 @@ const FrameSchema = z.object({
   frameColor: z.string().max(64),
 });
 
+const HangerSchema = z.object({
+  kind: z.enum(["single", "pair"]),
+  drop: length,
+  spacing: length,
+});
+
 const ItemSchema = z.object({
   id: z.string().regex(ID),
   name: z.string().max(500),
@@ -40,6 +46,7 @@ const ItemSchema = z.object({
   x: coord,
   y: coord,
   pinned: z.boolean().optional(),
+  hanger: HangerSchema.nullable().optional(),
 });
 
 export const RoomSchema = z.object({

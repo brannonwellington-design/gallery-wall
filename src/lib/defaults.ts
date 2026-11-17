@@ -1,4 +1,4 @@
-import type { Frame, Room } from "./types";
+import type { Frame, Hanger, Room } from "./types";
 import { toMm } from "./units";
 
 /** Frame a new piece gets: 2" mat, 3/4" frame, near-black moulding. */
@@ -6,6 +6,13 @@ export const DEFAULT_FRAME: Frame = {
   matWidth: toMm(2, "in"),
   frameWidth: toMm(0.75, "in"),
   frameColor: "#1f1f1f",
+};
+
+/** Assumed hanger when none is set: picture wire, nail ~2" below the top. */
+export const DEFAULT_HANGER: Hanger = {
+  kind: "single",
+  drop: toMm(2, "in"),
+  spacing: 0,
 };
 
 // Museum standard: 57" from floor to the center of the artwork.

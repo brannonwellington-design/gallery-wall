@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { ArrowLeft, Download, FileDown, Redo2, Shuffle, Trash2, Undo2 } from "lucide-react";
+import { ArrowLeft, Download, FileDown, Redo2, Ruler, Shuffle, Trash2, Undo2 } from "lucide-react";
 import { formatAbsolute, formatEditedLabel } from "@/lib/dates";
 import type { Unit } from "@/lib/types";
 import { fromMm, toMm } from "@/lib/units";
@@ -50,6 +50,8 @@ type Props = {
   onExportPNG: () => void;
   onExportPDF: () => void;
   onClear: () => void;
+  /** Link to this room's printable hanging guide. */
+  guideHref: string;
 };
 
 export default function Toolbar({
@@ -81,6 +83,7 @@ export default function Toolbar({
   onExportPNG,
   onExportPDF,
   onClear,
+  guideHref,
 }: Props) {
   const [wInput, setWInput] = useState(() => fromMm(wallWidthMm, unit).toFixed(1));
   const [hInput, setHInput] = useState(() => fromMm(wallHeightMm, unit).toFixed(1));
@@ -185,6 +188,14 @@ export default function Toolbar({
             <FileDown size={14} strokeWidth={1} aria-hidden="true" />
             PDF
           </Button>
+          <Hint label="Printable guide: where every nail goes, measured from the left edge and the floor">
+            <Button variant="ghost" className="text-label" asChild>
+              <Link href={guideHref} target="_blank" rel="noopener">
+                <Ruler size={14} strokeWidth={1} aria-hidden="true" />
+                Hanging guide
+              </Link>
+            </Button>
+          </Hint>
           <Hint label="Clear wall">
             <Button
               type="button"

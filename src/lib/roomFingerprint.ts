@@ -30,6 +30,7 @@ export function roomFingerprint(room: Room): string {
       x: it.x,
       y: it.y,
       pinned: it.pinned ?? false,
+      hanger: it.hanger ?? null,
       img: imageId(it.imageSrc),
       imgOrig: imageId(it.imageOriginalSrc),
     })),

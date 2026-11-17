@@ -4,7 +4,7 @@ import { Circle, Group, Image as KImage, Line, Rect, Text } from "react-konva";
 import useImage from "use-image";
 import type Konva from "konva";
 import { WALL_INK } from "@/lib/canvasTheme";
-import { framePadding, outerSize } from "@/lib/geometry";
+import { framePadding, nailPoints, outerSize } from "@/lib/geometry";
 import type { Item } from "@/lib/types";
 
 type Props = {
@@ -114,6 +114,20 @@ export default function ItemNode({
           fill={WALL_INK.brand}
         />
       )}
+      {selected &&
+        // Where the nail(s) go, from the piece's hanger (or the default).
+        nailPoints(item, 0).map((n, i) => (
+          <Group
+            key={`nail-${i}`}
+            x={(n.fromLeft - item.x) * scale}
+            y={(n.y - item.y) * scale}
+            listening={false}
+          >
+            <Circle radius={4} fill={WALL_INK.surface} stroke={WALL_INK.redline} strokeWidth={1.5} />
+            <Line points={[-6, 0, 6, 0]} stroke={WALL_INK.redline} strokeWidth={1} />
+            <Line points={[0, -6, 0, 6]} stroke={WALL_INK.redline} strokeWidth={1} />
+          </Group>
+        ))}
       {item.pinned && (
         // Map-pin badge in the top-right corner of the piece. Brand-blue
         // head + pointed base + cream dot. Excluded from listening so it
